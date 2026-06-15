@@ -4,9 +4,9 @@ This document tracks the tasks and plans for implementing the Granular YOLO Exte
 
 ## Roadmap & Progress
 
-- [ ] **Phase 1: Settings & UI**
-  - [ ] Register configurations in `package.json` for YOLO Levels (0-3)
-  - [ ] Add array input configuration for custom whitelists (Level 2)
+- [x] **Phase 1: Settings & UI**
+  - [x] Register configurations in `package.json` for YOLO Levels (0-3)
+  - [x] Add array input configuration for custom whitelists (Level 2)
 - [ ] **Phase 2: The Filter Pipeline**
   - [ ] Create `CommandValidator` class
   - [ ] Parse and tokenize shell commands
