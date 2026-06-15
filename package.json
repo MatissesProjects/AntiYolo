@@ -38,6 +38,13 @@
           },
           "default": [],
           "description": "List of additional allowed command names/patterns for Level 2 (Scoped YOLO)"
+        },
+        "antiyolo.timeoutSeconds": {
+          "type": "integer",
+          "default": 15,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "Maximum execution time in seconds for a single YOLO command."
         }
       }
     }
@@ -55,8 +62,5 @@
     "mocha": "^11.7.6",
     "ts-node": "^10.9.2",
     "typescript": "^4.9.5"
-  },
-  "dependencies": {
-    "bash-parser": "^0.5.0"
   }
 }

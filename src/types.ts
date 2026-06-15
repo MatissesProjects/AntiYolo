@@ -8,4 +8,5 @@ export enum YoloLevel {
 export interface AntiYoloConfig {
 	yoloLevel: YoloLevel;
 	whitelist: string[];
+	timeoutSeconds: number;
 }

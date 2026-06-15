@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { getConfig } from './config';
 import { CommandValidator } from './validator';
-import { executeShellCommand } from './executor';
+import { executeStructuredCommand } from './executor';
+
+interface ToolPayload {
+	command: string;
+	args?: string[];
+}
 
 export class CommandInterceptor {
 	constructor(private context: vscode.ExtensionContext) {}
@@ -9,22 +14,37 @@ export class CommandInterceptor {
 	public register() {
 		console.log('Command Interceptor registered.');
 		
-		const disposable = vscode.commands.registerCommand('antiyolo.runCommand', async (commandLine: string, cwd?: string) => {
-			if (!commandLine) {
-				vscode.window.showErrorMessage('AntiYolo: No command provided.');
-				return 'Error: No command provided.';
+		const disposable = vscode.commands.registerCommand('antiyolo.runCommand', async (payloadString: string, cwd?: string) => {
+			if (!payloadString) {
+				vscode.window.showErrorMessage('AntiYolo: No payload provided.');
+				return 'Error: No payload provided.';
 			}
 
+			let payload: ToolPayload;
+			try {
+				payload = JSON.parse(payloadString);
+			} catch (e) {
+				return 'Error: Payload must be a valid JSON string mapping to { command: string, args: string[] }.';
+			}
+
+			if (!payload.command || typeof payload.command !== 'string') {
+				return 'Error: Payload must contain a valid "command" string.';
+			}
+
+			const command = payload.command;
+			const args = Array.isArray(payload.args) ? payload.args : [];
+
 			const config = getConfig();
-			const validation = CommandValidator.validate(commandLine, config);
+			const validation = CommandValidator.validate(command, args, config);
 
 			if (!validation.execute && !validation.promptRequired) {
 				return `Error: Execution blocked. ${validation.reason || ''}`;
 			}
 
 			if (validation.promptRequired) {
+				const fullCmd = [command, ...args].join(' ');
 				const choice = await vscode.window.showWarningMessage(
-					`AntiYolo Alert\n\nAgent requested to run:\n${commandLine}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
+					`AntiYolo Alert\n\nAgent requested to run:\n${fullCmd}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
 					{ modal: true },
 					'Execute', 'Cancel'
 				);
@@ -34,7 +54,7 @@ export class CommandInterceptor {
 				}
 			}
 
-			return await executeShellCommand(commandLine, cwd);
+			return await executeStructuredCommand(command, args, cwd, config.timeoutSeconds * 1000);
 		});
 
 		this.context.subscriptions.push(disposable);

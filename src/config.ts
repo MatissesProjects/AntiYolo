@@ -11,9 +11,11 @@ export function getConfig(): AntiYoloConfig {
 	}
 
 	const whitelist = config.get<string[]>('whitelist', []);
+	const timeoutSeconds = config.get<number>('timeoutSeconds', 15);
 
 	return {
 		yoloLevel,
-		whitelist
+		whitelist,
+		timeoutSeconds
 	};
 }
