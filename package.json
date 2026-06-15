@@ -1,0 +1,49 @@
+{
+  "name": "antiyolo",
+  "displayName": "AntiYolo: Granular YOLO Extension",
+  "description": "Implement a tiered execution engine for Antigravity IDE commands.",
+  "version": "0.1.0",
+  "publisher": "antigravity",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "AntiYolo Settings",
+      "properties": {
+        "antiyolo.yoloLevel": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 3,
+          "description": "YOLO execution tier: 0 (Interactive), 1 (Read-Only YOLO), 2 (Scoped YOLO), 3 (Full YOLO)"
+        },
+        "antiyolo.whitelist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of additional allowed command names/patterns for Level 2 (Scoped YOLO)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.7",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^4.9.5"
+  }
+}
