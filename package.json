@@ -15,6 +15,12 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "antiyolo.runCommand",
+        "title": "AntiYolo: Run Agent Command"
+      }
+    ],
     "configuration": {
       "title": "AntiYolo Settings",
       "properties": {
@@ -39,11 +45,15 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "test": "mocha src/test/suite/**/*.test.ts --require ts-node/register"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^16.11.7",
     "@types/vscode": "^1.75.0",
+    "mocha": "^11.7.6",
+    "ts-node": "^10.9.2",
     "typescript": "^4.9.5"
   }
 }

@@ -1,16 +1,5 @@
 import * as vscode from 'vscode';
-
-export enum YoloLevel {
-	Interactive = 0,
-	ReadOnly = 1,
-	Scoped = 2,
-	Full = 3
-}
-
-export interface AntiYoloConfig {
-	yoloLevel: YoloLevel;
-	whitelist: string[];
-}
+import { YoloLevel, AntiYoloConfig } from './types';
 
 export function getConfig(): AntiYoloConfig {
 	const config = vscode.workspace.getConfiguration('antiyolo');
