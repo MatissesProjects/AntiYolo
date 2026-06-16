@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { getConfig } from './config';
 import { CommandLogger, LogEntry } from './logger';
+import * as https from 'https';
+import * as url from 'url';
 
 export class AntiYoloDashboard {
 	private static currentPanel: vscode.WebviewPanel | undefined;
@@ -49,6 +51,33 @@ export class AntiYoloDashboard {
 				case 'updateConfig':
 					await config.update(message.key, message.value, vscode.ConfigurationTarget.Global);
 					break;
+				case 'testDiscordWebhook': {
+					const extConfig = getConfig();
+					if (!extConfig.discordWebhookUrl) {
+						vscode.window.showErrorMessage('AntiYolo: Discord Webhook URL is not configured.');
+						break;
+					}
+					const payload = {
+						embeds: [{
+							title: "🛡️ AntiYolo: Test Webhook Alert",
+							description: "Your Discord webhook configuration is working perfectly!",
+							color: 26214, // clean blue/cyan
+							fields: [
+								{ name: "Local Server Port", value: String(extConfig.localServerPort), inline: true },
+								{ name: "Active YOLO Level", value: ['Interactive', 'Read-Only YOLO', 'Scoped YOLO', 'Full YOLO'][extConfig.yoloLevel], inline: true }
+							],
+							timestamp: new Date().toISOString()
+						}]
+					};
+
+					try {
+						await this.sendWebhook(extConfig.discordWebhookUrl, payload);
+						vscode.window.showInformationMessage('AntiYolo: Test notification sent successfully!');
+					} catch (err) {
+						vscode.window.showErrorMessage(`AntiYolo: Failed to send test notification: ${(err as Error).message}`);
+					}
+					break;
+				}
 				case 'addWhitelist': {
 					const list = config.get<string[]>('whitelist', []);
 					if (message.command && !list.includes(message.command)) {
@@ -105,6 +134,43 @@ export class AntiYoloDashboard {
 			type: 'state',
 			config,
 			logs
+		});
+	}
+
+	private static sendWebhook(webhookUrl: string, payload: any): Promise<void> {
+		return new Promise((resolve, reject) => {
+			try {
+				const parsedUrl = url.parse(webhookUrl);
+				const options: https.RequestOptions = {
+					hostname: parsedUrl.hostname,
+					path: parsedUrl.path,
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					}
+				};
+
+				const req = https.request(options, (res) => {
+					let body = '';
+					res.on('data', (chunk) => body += chunk);
+					res.on('end', () => {
+						if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+							resolve();
+						} else {
+							reject(new Error(`Discord webhook returned status ${res.statusCode}: ${body}`));
+						}
+					});
+				});
+
+				req.on('error', (err) => {
+					reject(err);
+				});
+
+				req.write(JSON.stringify(payload));
+				req.end();
+			} catch (err) {
+				reject(err);
+			}
 		});
 	}
 }

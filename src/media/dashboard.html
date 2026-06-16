@@ -831,9 +831,42 @@
                     <div class="list-item">shutdown <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
                     <div class="list-item">reboot <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
                 </div>
-            </div>
         </div>
 
+        <!-- Discord Integration Settings -->
+        <div class="list-card" style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <h2 style="font-size: 1.2rem; font-weight: 600;">👾 Discord Unblocking Integration</h2>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Receive command prompts on Discord and approve/deny them remotely via secure localhost redirects.</p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.03); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--panel-border);">
+                    <span style="font-size: 0.85rem; font-weight: 600;">Enable Discord Notifications</span>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-enable-discord" onchange="vscode.postMessage({ type: 'updateConfig', key: 'enableDiscord', value: this.checked })">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: end;">
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <label for="discord-webhook-input" style="font-size: 0.85rem; font-weight: 600; color: var(--text-color);">Discord Webhook URL</label>
+                        <input type="text" id="discord-webhook-input" placeholder="e.g. https://discord.com/api/webhooks/..." style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--panel-border); border-radius: 6px; padding: 10px 12px; color: var(--text-color); font-family: var(--font-mono); font-size: 0.85rem; width: 100%;" onchange="vscode.postMessage({ type: 'updateConfig', key: 'discordWebhookUrl', value: this.value.trim() })">
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <label for="local-server-port-input" style="font-size: 0.85rem; font-weight: 600; color: var(--text-color);">Local Server Port</label>
+                        <input type="number" id="local-server-port-input" placeholder="7788" style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--panel-border); border-radius: 6px; padding: 10px 12px; color: var(--text-color); font-family: var(--font-mono); font-size: 0.85rem; width: 100%;" onchange="vscode.postMessage({ type: 'updateConfig', key: 'localServerPort', value: parseInt(this.value, 10) || 7788 })">
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--panel-border); flex-wrap: wrap; gap: 12px;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">
+                        ℹ️ Action links in Discord communicate with the extension via <code style="font-family: var(--font-mono); color: var(--accent-blue);">http://localhost:&lt;port&gt;/respond</code> using a secure random nonce.
+                    </span>
+                    <button class="btn" style="background: var(--accent-blue);" onclick="testDiscordWebhook()">Test Webhook Connection</button>
+                </div>
+            </div>
         </div>
 
         <!-- Mock Command Trigger (Dev Mode tool) -->
@@ -952,6 +985,11 @@
             setupCategoryToggle('allowTestOps', 'switch-test', 'cat-card-test');
             setupCategoryToggle('allowFileOps', 'switch-file', 'cat-card-file');
             document.getElementById('switch-restrict').checked = !!currentConfig.restrictToWorkspace;
+
+            // Discord config settings
+            document.getElementById('switch-enable-discord').checked = !!currentConfig.enableDiscord;
+            document.getElementById('discord-webhook-input').value = currentConfig.discordWebhookUrl || '';
+            document.getElementById('local-server-port-input').value = currentConfig.localServerPort || 7788;
 
             // Action Checkboxes
             setupActionCheckboxes('allowedPackageActions', ['install', 'ci', 'update', 'uninstall'], 'pkg');
@@ -1128,6 +1166,10 @@
                 command: cmd,
                 args: args
             });
+        }
+
+        function testDiscordWebhook() {
+            vscode.postMessage({ type: 'testDiscordWebhook' });
         }
 
         function escapeHtml(str) {
