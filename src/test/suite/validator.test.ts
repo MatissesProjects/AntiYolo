@@ -128,4 +128,97 @@ describe('CommandValidator Security & Features', () => {
 		assert.strictEqual(resMkdir.execute, false);
 		assert.strictEqual(resMkdir.promptRequired, true);
 	});
+
+	describe('Wrapper & Option Parsing Bypasses', () => {
+		it('should block sudo with options that execute blacklisted commands', () => {
+			const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+			const result = CommandValidator.validate('sudo', ['-u', 'root', 'rm', '-rf', '/'], config);
+			assert.strictEqual(result.execute, false);
+			assert.strictEqual(result.promptRequired, true);
+		});
+
+		it('should block env with assignments and options that execute blacklisted commands', () => {
+			const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+			const result1 = CommandValidator.validate('env', ['-i', 'MY_VAR=value', 'rm', '-rf', '/'], config);
+			const result2 = CommandValidator.validate('env', ['MY_VAR=value', 'rm', '-rf', '/'], config);
+			assert.strictEqual(result1.execute, false);
+			assert.strictEqual(result1.promptRequired, true);
+			assert.strictEqual(result2.execute, false);
+			assert.strictEqual(result2.promptRequired, true);
+		});
+
+		it('should block npx and npm exec with options executing blacklisted commands', () => {
+			const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+			const result1 = CommandValidator.validate('npx', ['--yes', 'rm', '-rf', '/'], config);
+			const result2 = CommandValidator.validate('npm', ['exec', '--yes', '--', 'rm', '-rf', '/'], config);
+			assert.strictEqual(result1.execute, false);
+			assert.strictEqual(result1.promptRequired, true);
+			assert.strictEqual(result2.execute, false);
+			assert.strictEqual(result2.promptRequired, true);
+		});
+
+		it('should fail closed on ambiguous/unrecognized options on wrappers', () => {
+			const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+			const result = CommandValidator.validate('env', ['--unknown-option-flag', 'ls'], config);
+			assert.strictEqual(result.execute, false);
+			assert.strictEqual(result.promptRequired, true);
+		});
+	});
+
+	describe('Recursive Shell Execution Bypasses', () => {
+		it('should block nested shell commands containing blacklisted items', () => {
+			const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+			const result1 = CommandValidator.validate('bash', ['-c', 'echo "hello" && rm -rf /'], config);
+			const result2 = CommandValidator.validate('cmd.exe', ['/c', 'echo hello & rm -rf'], config);
+			const result3 = CommandValidator.validate('powershell', ['-Command', 'echo hello; rm -rf'], config);
+
+			assert.strictEqual(result1.execute, false);
+			assert.strictEqual(result1.promptRequired, true);
+			assert.strictEqual(result2.execute, false);
+			assert.strictEqual(result2.promptRequired, true);
+			assert.strictEqual(result3.execute, false);
+			assert.strictEqual(result3.promptRequired, true);
+		});
+
+		it('should allow nested shell commands with only whitelisted/safe items at Level 1/2', () => {
+			const config: AntiYoloConfig = {
+				...BASE_CONFIG,
+				yoloLevel: YoloLevel.ReadOnly
+			};
+			const result = CommandValidator.validate('bash', ['-c', 'ls && cat file.txt'], config);
+			assert.strictEqual(result.execute, true);
+			assert.strictEqual(result.promptRequired, false);
+		});
+
+		it('should respect quotes in shell operators', () => {
+			const config: AntiYoloConfig = {
+				...BASE_CONFIG,
+				yoloLevel: YoloLevel.ReadOnly
+			};
+			const result = CommandValidator.validate('bash', ['-c', "echo 'hello && world'"], config);
+			assert.strictEqual(result.execute, true);
+		});
+	});
+
+	describe('Inline Script Interpreter Bypasses', () => {
+		it('should block inline scripts containing blacklisted words', () => {
+			const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+			const result1 = CommandValidator.validate('python', ['-c', "import os; os.system('rm -rf /')"], config);
+			const result2 = CommandValidator.validate('node', ['-e', "const exec = require('child_process').exec; exec('rm -rf /')"], config);
+
+			assert.strictEqual(result1.execute, false);
+			assert.strictEqual(result1.promptRequired, true);
+			assert.strictEqual(result2.execute, false);
+			assert.strictEqual(result2.promptRequired, true);
+		});
+
+		it('should allow inline scripts without blacklisted words', () => {
+			const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+			const result1 = CommandValidator.validate('python', ['-c', "print('hello')"], config);
+			const result2 = CommandValidator.validate('node', ['-e', "console.log('hello')"], config);
+
+			assert.strictEqual(result1.execute, true);
+			assert.strictEqual(result2.execute, true);
+		});
+	});
 });

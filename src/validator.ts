@@ -11,27 +11,254 @@ const BLACKLIST = ['rm', 'mkfs', 'dd', 'shutdown', 'reboot', 'mv'];
 const LEVEL1_WHITELIST = ['cat', 'ls', 'pwd', 'grep', 'git status', 'git diff', 'echo'];
 
 export class CommandValidator {
-	private static unwrap(command: string, args: string[]): { cmd: string, args: string[] } {
+	private static parseEnvArgs(args: string[]): { cmd: string | null, args: string[] } {
+		let idx = 0;
+		while (idx < args.length) {
+			const arg = args[idx];
+			if (arg === '--') {
+				idx++;
+				break;
+			}
+			if (arg.startsWith('-')) {
+				if (arg.startsWith('--')) {
+					if (arg === '--ignore-environment' || arg === '--help' || arg === '--version' || arg === '--null') {
+						idx++;
+					} else if (arg.startsWith('--unset=') || arg.startsWith('--chdir=')) {
+						idx++;
+					} else if (arg === '--unset' || arg === '--chdir') {
+						idx += 2;
+					} else {
+						return { cmd: null, args: [] }; // fail closed
+					}
+				} else {
+					let consumedNext = false;
+					for (let i = 1; i < arg.length; i++) {
+						const char = arg[i];
+						if (char === 'u' || char === 'C' || char === 'S') {
+							if (i === arg.length - 1) {
+								consumedNext = true;
+							}
+							break;
+						}
+					}
+					if (consumedNext) {
+						idx += 2;
+					} else {
+						idx += 1;
+					}
+				}
+			} else if (arg.includes('=')) {
+				idx++;
+			} else {
+				break;
+			}
+		}
+		if (idx >= args.length) {
+			return { cmd: null, args: [] };
+		}
+		return { cmd: args[idx], args: args.slice(idx + 1) };
+	}
+
+	private static parseSudoArgs(args: string[]): { cmd: string | null, args: string[] } {
+		let idx = 0;
+		while (idx < args.length) {
+			const arg = args[idx];
+			if (arg === '--') {
+				idx++;
+				break;
+			}
+			if (arg.startsWith('-')) {
+				if (arg.startsWith('--')) {
+					const equalsIdx = arg.indexOf('=');
+					const optName = equalsIdx !== -1 ? arg.substring(0, equalsIdx) : arg;
+					const needsVal = ['--close-from', '--chdir', '--group', '--host', '--prompt', '--chroot', '--role', '--type', '--other-user', '--user'].includes(optName);
+					if (needsVal) {
+						if (equalsIdx !== -1) {
+							idx++;
+						} else {
+							idx += 2;
+						}
+					} else {
+						const isKnownBool = ['--help', '--version', '--list', '--validate', '--invalidate', '--reset-timestamp', '--stdin', '--shell', '--login', '--preserve-env'].includes(optName);
+						if (isKnownBool) {
+							idx++;
+						} else {
+							return { cmd: null, args: [] }; // fail closed
+						}
+					}
+				} else {
+					let consumedNext = false;
+					for (let i = 1; i < arg.length; i++) {
+						const char = arg[i];
+						if (['C', 'g', 'h', 'p', 'R', 'r', 't', 'U', 'u', 'D', 'c', 'a'].includes(char)) {
+							if (i === arg.length - 1) {
+								consumedNext = true;
+							}
+							break;
+						}
+					}
+					if (consumedNext) {
+						idx += 2;
+					} else {
+						idx += 1;
+					}
+				}
+			} else {
+				break;
+			}
+		}
+		if (idx >= args.length) {
+			return { cmd: null, args: [] };
+		}
+		return { cmd: args[idx], args: args.slice(idx + 1) };
+	}
+
+	private static parseNpxArgs(args: string[]): { cmd: string | null, args: string[] } {
+		let idx = 0;
+		while (idx < args.length) {
+			const arg = args[idx];
+			if (arg === '--') {
+				idx++;
+				break;
+			}
+			if (arg.startsWith('-')) {
+				if (arg.startsWith('--')) {
+					const equalsIdx = arg.indexOf('=');
+					const optName = equalsIdx !== -1 ? arg.substring(0, equalsIdx) : arg;
+					const needsVal = ['--package', '--call', '--node-arg', '--workspace'].includes(optName);
+					if (needsVal) {
+						if (equalsIdx !== -1) {
+							idx++;
+						} else {
+							idx += 2;
+						}
+					} else {
+						idx++;
+					}
+				} else {
+					let consumedNext = false;
+					for (let i = 1; i < arg.length; i++) {
+						const char = arg[i];
+						if (['p', 'c', 'n', 'w'].includes(char)) {
+							if (i === arg.length - 1) {
+								consumedNext = true;
+							}
+							break;
+						}
+					}
+					if (consumedNext) {
+						idx += 2;
+					} else {
+						idx += 1;
+					}
+				}
+			} else {
+				break;
+			}
+		}
+		if (idx >= args.length) {
+			return { cmd: null, args: [] };
+		}
+		return { cmd: args[idx], args: args.slice(idx + 1) };
+	}
+
+	private static parseYarnDlxArgs(args: string[]): { cmd: string | null, args: string[] } {
+		let idx = 0;
+		while (idx < args.length) {
+			const arg = args[idx];
+			if (arg === '--') {
+				idx++;
+				break;
+			}
+			if (arg.startsWith('-')) {
+				if (arg.startsWith('--')) {
+					const equalsIdx = arg.indexOf('=');
+					const optName = equalsIdx !== -1 ? arg.substring(0, equalsIdx) : arg;
+					const needsVal = ['--package'].includes(optName);
+					if (needsVal) {
+						if (equalsIdx !== -1) {
+							idx++;
+						} else {
+							idx += 2;
+						}
+					} else {
+						idx++;
+					}
+				} else {
+					let consumedNext = false;
+					for (let i = 1; i < arg.length; i++) {
+						const char = arg[i];
+						if (char === 'p') {
+							if (i === arg.length - 1) {
+								consumedNext = true;
+							}
+							break;
+						}
+					}
+					if (consumedNext) {
+						idx += 2;
+					} else {
+						idx += 1;
+					}
+				}
+			} else {
+				break;
+			}
+		}
+		if (idx >= args.length) {
+			return { cmd: null, args: [] };
+		}
+		return { cmd: args[idx], args: args.slice(idx + 1) };
+	}
+
+	private static unwrap(command: string, args: string[]): { cmd: string | null, args: string[] } {
 		let currentCmd = command;
 		let currentArgs = [...args];
 		
 		while (true) {
-			const baseCmd = path.basename(currentCmd);
-			if (['sudo', 'npx', 'env'].includes(baseCmd)) {
-				if (currentArgs.length === 0) break;
+			if (currentCmd.includes('=')) {
+				if (currentArgs.length === 0) {
+					return { cmd: null, args: [] };
+				}
 				currentCmd = currentArgs.shift()!;
+				continue;
+			}
+
+			const baseCmd = path.basename(currentCmd);
+			if (baseCmd === 'env') {
+				const res = this.parseEnvArgs(currentArgs);
+				if (!res.cmd) return { cmd: null, args: [] };
+				currentCmd = res.cmd;
+				currentArgs = res.args;
+			} else if (baseCmd === 'sudo') {
+				const res = this.parseSudoArgs(currentArgs);
+				if (!res.cmd) return { cmd: null, args: [] };
+				currentCmd = res.cmd;
+				currentArgs = res.args;
+			} else if (baseCmd === 'npx') {
+				const res = this.parseNpxArgs(currentArgs);
+				if (!res.cmd) return { cmd: null, args: [] };
+				currentCmd = res.cmd;
+				currentArgs = res.args;
 			} else if (baseCmd === 'bundle' && currentArgs[0] === 'exec') {
-				if (currentArgs.length < 2) break;
 				currentArgs.shift(); // remove exec
+				while (currentArgs.length > 0 && currentArgs[0].startsWith('-')) {
+					currentArgs.shift();
+				}
+				if (currentArgs.length === 0) return { cmd: null, args: [] };
 				currentCmd = currentArgs.shift()!;
 			} else if (baseCmd === 'npm' && (currentArgs[0] === 'exec' || currentArgs[0] === 'x')) {
-				if (currentArgs.length < 2) break;
-				currentArgs.shift();
-				currentCmd = currentArgs.shift()!;
+				currentArgs.shift(); // remove exec/x
+				const res = this.parseNpxArgs(currentArgs);
+				if (!res.cmd) return { cmd: null, args: [] };
+				currentCmd = res.cmd;
+				currentArgs = res.args;
 			} else if (baseCmd === 'yarn' && currentArgs[0] === 'dlx') {
-				if (currentArgs.length < 2) break;
-				currentArgs.shift();
-				currentCmd = currentArgs.shift()!;
+				currentArgs.shift(); // remove dlx
+				const res = this.parseYarnDlxArgs(currentArgs);
+				if (!res.cmd) return { cmd: null, args: [] };
+				currentCmd = res.cmd;
+				currentArgs = res.args;
 			} else {
 				break;
 			}
@@ -149,12 +376,262 @@ export class CommandValidator {
 		return false;
 	}
 
+	private static splitShellCommands(cmdStr: string): string[] {
+		const commands: string[] = [];
+		let current = '';
+		let inSingleQuote = false;
+		let inDoubleQuote = false;
+		let escaped = false;
+
+		for (let i = 0; i < cmdStr.length; i++) {
+			const char = cmdStr[i];
+
+			if (escaped) {
+				current += char;
+				escaped = false;
+				continue;
+			}
+
+			if (char === '\\' && !inSingleQuote) {
+				escaped = true;
+				current += char;
+				continue;
+			}
+
+			if (char === "'" && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+				current += char;
+				continue;
+			}
+
+			if (char === '"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+				current += char;
+				continue;
+			}
+
+			if (!inSingleQuote && !inDoubleQuote) {
+				if (char === ';') {
+					if (current.trim()) {
+						commands.push(current.trim());
+					}
+					current = '';
+					continue;
+				}
+				if (char === '\n') {
+					if (current.trim()) {
+						commands.push(current.trim());
+					}
+					current = '';
+					continue;
+				}
+				if (char === '&') {
+					if (cmdStr[i + 1] === '&') {
+						if (current.trim()) {
+							commands.push(current.trim());
+						}
+						current = '';
+						i++;
+					} else {
+						if (current.trim()) {
+							commands.push(current.trim());
+						}
+						current = '';
+					}
+					continue;
+				}
+				if (char === '|' && cmdStr[i + 1] === '|') {
+					if (current.trim()) {
+						commands.push(current.trim());
+					}
+					current = '';
+					i++;
+					continue;
+				}
+				if (char === '|') {
+					if (current.trim()) {
+						commands.push(current.trim());
+					}
+					current = '';
+					continue;
+				}
+			}
+
+			current += char;
+		}
+
+		if (current.trim()) {
+			commands.push(current.trim());
+		}
+
+		return commands;
+	}
+
+	private static tokenizeShellCommand(cmdStr: string): { command: string, args: string[] } | null {
+		const tokens: string[] = [];
+		let current = '';
+		let inSingleQuote = false;
+		let inDoubleQuote = false;
+		let escaped = false;
+		let hasChar = false;
+
+		for (let i = 0; i < cmdStr.length; i++) {
+			const char = cmdStr[i];
+
+			if (escaped) {
+				current += char;
+				escaped = false;
+				hasChar = true;
+				continue;
+			}
+
+			if (char === '\\' && !inSingleQuote) {
+				escaped = true;
+				continue;
+			}
+
+			if (char === "'" && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+				hasChar = true;
+				continue;
+			}
+
+			if (char === '"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+				hasChar = true;
+				continue;
+			}
+
+			if (!inSingleQuote && !inDoubleQuote && (char === ' ' || char === '\t')) {
+				if (hasChar || current) {
+					tokens.push(current);
+					current = '';
+					hasChar = false;
+				}
+				continue;
+			}
+
+			current += char;
+			hasChar = true;
+		}
+
+		if (hasChar || current) {
+			tokens.push(current);
+		}
+
+		if (tokens.length === 0) {
+			return null;
+		}
+
+		return {
+			command: tokens[0],
+			args: tokens.slice(1)
+		};
+	}
+
 	public static validate(command: string, args: string[], config: AntiYoloConfig): ValidationResult {
+		return this.validateInternal(command, args, config, 0);
+	}
+
+	private static validateInternal(command: string, args: string[], config: AntiYoloConfig, depth: number): ValidationResult {
+		if (depth > 10) {
+			return { execute: false, promptRequired: true, reason: 'Command recursion limit exceeded.' };
+		}
+
 		const unwrapped = this.unwrap(command, args);
+		if (unwrapped.cmd === null) {
+			return { execute: false, promptRequired: true, reason: 'Command structure is too complex or ambiguous to validate.' };
+		}
+
 		const baseExecutable = path.basename(unwrapped.cmd);
 
 		if (BLACKLIST.includes(baseExecutable)) {
 			return { execute: false, promptRequired: true, reason: `Command contains blacklisted executable '${baseExecutable}'.` };
+		}
+
+		// Check shell command execution
+		let shellCmdStr: string | null = null;
+		if (['sh', 'bash', 'zsh', 'dash', 'ksh'].includes(baseExecutable)) {
+			for (let i = 0; i < unwrapped.args.length; i++) {
+				const arg = unwrapped.args[i];
+				if (arg === '--') break;
+				if (arg.startsWith('-')) {
+					if (arg === '-c') {
+						shellCmdStr = unwrapped.args[i + 1] || null;
+						break;
+					}
+					if (arg.startsWith('-') && !arg.startsWith('--') && arg.endsWith('c')) {
+						shellCmdStr = unwrapped.args[i + 1] || null;
+						break;
+					}
+				}
+			}
+		} else if (['cmd.exe', 'cmd'].includes(baseExecutable.toLowerCase())) {
+			for (let i = 0; i < unwrapped.args.length; i++) {
+				const arg = unwrapped.args[i];
+				const lowerArg = arg.toLowerCase();
+				if (lowerArg === '/c' || lowerArg === '/k' || lowerArg === '-c' || lowerArg === '-k') {
+					shellCmdStr = unwrapped.args.slice(i + 1).join(' ');
+					break;
+				}
+			}
+		} else if (['powershell', 'pwsh', 'powershell.exe', 'pwsh.exe'].includes(baseExecutable.toLowerCase())) {
+			for (let i = 0; i < unwrapped.args.length; i++) {
+				const arg = unwrapped.args[i];
+				const lowerArg = arg.toLowerCase();
+				if (lowerArg === '-command' || lowerArg === '-c' || lowerArg === '/command' || lowerArg === '/c') {
+					shellCmdStr = unwrapped.args.slice(i + 1).join(' ');
+					break;
+				}
+			}
+		}
+
+		if (shellCmdStr !== null) {
+			const subStatements = this.splitShellCommands(shellCmdStr);
+			for (const subStmt of subStatements) {
+				const tokenized = this.tokenizeShellCommand(subStmt);
+				if (!tokenized) continue;
+				const subResult = this.validateInternal(tokenized.command, tokenized.args, config, depth + 1);
+				if (subResult.promptRequired || !subResult.execute) {
+					return {
+						execute: false,
+						promptRequired: true,
+						reason: `Shell command contains invalid sub-command: ${subResult.reason || ''}`
+					};
+				}
+			}
+			return { execute: true, promptRequired: false };
+		}
+
+		// Check inline script interpreter execution
+		let inlineScript: string | null = null;
+		if (['python', 'python3'].includes(baseExecutable)) {
+			const cIdx = unwrapped.args.indexOf('-c');
+			if (cIdx !== -1 && cIdx + 1 < unwrapped.args.length) {
+				inlineScript = unwrapped.args[cIdx + 1];
+			}
+		} else if (baseExecutable === 'node') {
+			const eIdx = unwrapped.args.indexOf('-e');
+			const evalIdx = unwrapped.args.indexOf('--eval');
+			const idx = eIdx !== -1 ? eIdx : evalIdx;
+			if (idx !== -1 && idx + 1 < unwrapped.args.length) {
+				inlineScript = unwrapped.args[idx + 1];
+			}
+		} else if (['perl', 'ruby'].includes(baseExecutable)) {
+			const eIdx = unwrapped.args.indexOf('-e');
+			if (eIdx !== -1 && eIdx + 1 < unwrapped.args.length) {
+				inlineScript = unwrapped.args[eIdx + 1];
+			}
+		}
+
+		if (inlineScript) {
+			const blacklistWords = ['rm', 'mkfs', 'dd', 'shutdown', 'reboot', 'mv'];
+			for (const word of blacklistWords) {
+				const regex = new RegExp(`\\b${word}\\b`);
+				if (regex.test(inlineScript)) {
+					return { execute: false, promptRequired: true, reason: `Inline script contains blacklisted command word '${word}'.` };
+				}
+			}
 		}
 
 		if (config.yoloLevel === YoloLevel.Interactive) {
