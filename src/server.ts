@@ -46,7 +46,7 @@ export class LocalApprovalServer {
 					try {
 						const success = await this.onActionCallback(id, token, action);
 						if (success) {
-							let badgeClass = 'success';
+							let badgeClass: 'success' | 'warning' | 'error' = 'success';
 							let statusText = 'Approved';
 							let titleText = 'Command Authorized';
 							let msgText = 'The command was successfully approved and sent for execution.';

@@ -18,6 +18,9 @@ const BASE_CONFIG: AntiYoloConfig = {
 	allowedFileActions: [],
 	restrictToWorkspace: false,
 	workspaceFolders: [],
+	enableDiscord: false,
+	discordWebhookUrl: '',
+	localServerPort: 7788,
 	enabled: true
 };
 

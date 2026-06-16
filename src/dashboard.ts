@@ -71,7 +71,7 @@ export class AntiYoloDashboard {
 					};
 
 					try {
-						await this.sendWebhook(extConfig.discordWebhookUrl, payload);
+						await AntiYoloDashboard.sendWebhook(extConfig.discordWebhookUrl, payload);
 						vscode.window.showInformationMessage('AntiYolo: Test notification sent successfully!');
 					} catch (err) {
 						vscode.window.showErrorMessage(`AntiYolo: Failed to send test notification: ${(err as Error).message}`);
