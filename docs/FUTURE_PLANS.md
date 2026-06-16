@@ -7,14 +7,21 @@ Give users fine-grained control ("a full set of selections") over exactly which 
 
 ---
 
-## 1. Structured Command Categories
-We will introduce five standard categories of operations that can be toggled independently for **Level 2 (Scoped YOLO)**:
+## 1. Structured Command Categories & Fine-Grained Actions
+We will introduce five standard categories of operations. Each category has a primary boolean switch (`allow{Category}Ops`) and a list of allowed fine-grained actions (`allowed{Category}Actions`):
 
-*   📦 **Package Operations (`allowPackageOps`)**: Allows installing/uninstalling packages (e.g., `npm install`, `pip install`, `cargo add`).
-*   🧪 **Test Operations (`allowTestOps`)**: Allows running tests (e.g., `npm test`, `pytest`, `cargo test`).
-*   🏗️ **Build Operations (`allowBuildOps`)**: Allows compiling/building projects (e.g., `tsc`, `npm run build`, `cargo build`).
-*   🌿 **Git Operations (`allowGitOps`)**: Allows repository tracking/staging/syncing (e.g., `git add`, `git commit`, `git push`, `git checkout`).
-*   📂 **File Operations (`allowFileOps`)**: Allows writing or copying files/directories (e.g., `mkdir`, `touch`, `cp`).
+*   📦 **Package Operations (`allowPackageOps`, `allowedPackageActions`)**:
+    *   Actions: `install` (npm/yarn/pip install), `ci` (npm ci/clean installs), `update` (npm update/yarn upgrade), `uninstall` (npm uninstall/yarn remove).
+*   🧪 **Test Operations (`allowTestOps`, `allowedTestActions`)**:
+    *   Actions: `test` (npm test / cargo test / go test), `jest`, `mocha`, `pytest`, `vitest`, `playwright`, `cypress`.
+*   🏗️ **Build Operations (`allowBuildOps`, `allowedBuildActions`)**:
+    *   Actions: `tsc` (TypeScript compile), `build` (npm run build / webpack / vite), `make` (Makefiles / C++), `gradle` (Gradle builds), `maven` (Maven builds).
+*   🌿 **Git Operations (`allowGitOps`, `allowedGitActions`)**:
+    *   Actions: `add` (git add), `commit` (git commit), `push` (git push), `checkout` (git checkout), `branch` (git branch), `pull` (git pull), `fetch` (git fetch), `stash` (git stash), `reset` (git reset).
+*   📂 **File Operations (`allowFileOps`, `allowedFileActions`)**:
+    *   Actions: `mkdir` (create directory), `touch` (create file), `cp` (copy files), `chmod` (change permissions), `chown` (change ownership).
+
+If a category switch is turned ON, only the checked fine-grained actions within that category will be auto-executed. If the category switch is OFF, all commands in that category will fall back to Level 0 (Interactive) prompting.
 
 ---
 
