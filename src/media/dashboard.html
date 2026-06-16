@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AntiYolo: Granular Security Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0e14;
+            --panel-bg: rgba(20, 24, 33, 0.75);
+            --panel-border: rgba(48, 54, 61, 0.5);
+            --text-color: #e6edf3;
+            --text-muted: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-orange: #d29922;
+            --accent-red: #f85149;
+            --font-main: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --shadow-glow: 0 0 15px rgba(88, 166, 255, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 24px;
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Header section */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .logo-section h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 30%, var(--accent-blue) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+            box-shadow: 0 0 8px var(--text-muted);
+        }
+
+        /* YOLO Levels Grid */
+        .levels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .level-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .level-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .level-card.active {
+            border-color: var(--active-color);
+            box-shadow: 0 0 20px rgba(var(--active-color-rgb), 0.15);
+        }
+
+        .level-card.active::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background-color: var(--active-color);
+        }
+
+        .level-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--active-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .level-badge .check-icon {
+            display: none;
+        }
+
+        .level-card.active .check-icon {
+            display: block;
+        }
+
+        .level-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .level-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Scoped Categories Grid */
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .scoped-container {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .scoped-container.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .categories-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .category-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 16px;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .category-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .category-icon {
+            font-size: 1.25rem;
+        }
+
+        .category-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #30363d;
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-blue);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Action Swatches / Actions panel */
+        .actions-panel {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .category-card.expanded .actions-panel {
+            max-height: 300px;
+            opacity: 1;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .action-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .action-row input[type="checkbox"] {
+            accent-color: var(--accent-blue);
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+        }
+
+        .action-label {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .action-desc {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* Whitelist & Blacklist Panels */
+        .whitelist-blacklist-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+        }
+
+        .list-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-group input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: var(--text-color);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
+        }
+
+        .btn {
+            background: var(--accent-blue);
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            filter: brightness(1.1);
+        }
+
+        .list-items {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .list-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: var(--accent-red);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+
+        .delete-btn:hover {
+            opacity: 1;
+        }
+
+        /* Audit Log Section */
+        .audit-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .audit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .audit-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .clear-btn {
+            background: none;
+            border: 1px solid var(--panel-border);
+            color: var(--text-muted);
+        }
+
+        .clear-btn:hover {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+            background: rgba(248, 81, 73, 0.05);
+        }
+
+        /* Audit Logs Feed */
+        .logs-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .log-row {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: border-color 0.2s ease;
+        }
+
+        .log-summary {
+            padding: 12px 16px;
+            display: grid;
+            grid-template-columns: 80px 100px 1fr 100px 40px;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+        }
+
+        .log-row:hover {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .log-time {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .log-level {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .log-cmd {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .log-status-badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-align: center;
+            display: inline-block;
+            width: fit-content;
+        }
+
+        .badge-allowed { background: rgba(63, 185, 80, 0.1); color: var(--accent-green); }
+        .badge-approved { background: rgba(88, 166, 255, 0.1); color: var(--accent-blue); }
+        .badge-denied { background: rgba(248, 81, 73, 0.1); color: var(--accent-red); }
+        .badge-blocked { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); font-weight: 700; }
+        .badge-running { background: rgba(210, 153, 34, 0.1); color: var(--accent-orange); animation: pulse 1.5s infinite; }
+        .badge-completed { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+        .badge-failed { background: rgba(248, 81, 73, 0.1); color: var(--accent-red); }
+        .badge-timeout { background: rgba(210, 153, 34, 0.1); color: var(--accent-orange); }
+
+        .log-duration {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: right;
+        }
+
+        .log-arrow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+        }
+
+        .log-row.expanded .log-arrow {
+            transform: rotate(90deg);
+        }
+
+        .log-detail {
+            border-top: 1px solid var(--panel-border);
+            background: rgba(0, 0, 0, 0.4);
+            padding: 16px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .log-row.expanded .log-detail {
+            display: flex;
+        }
+
+        .log-console-header {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .log-console {
+            background: #040406;
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: #c9d1d9;
+            max-height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        /* Mock tool section */
+        .mock-section {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo-section">
+                <h1>🛡️ AntiYolo</h1>
+            </div>
+            <div class="status-pill">
+                <span class="status-dot" id="global-status-dot"></span>
+                <span id="global-status-text">Interactive</span>
+            </div>
+        </header>
+
+        <!-- Levels -->
+        <div class="levels-grid">
+            <!-- Level 0 -->
+            <div class="level-card" id="level-card-0" onclick="setLevel(0)" style="--active-color: var(--text-muted); --active-color-rgb: 139, 148, 158;">
+                <div class="level-badge">
+                    <span>Level 0</span>
+                    <span class="check-icon">✓</span>
+                </div>
+                <div class="level-title">Interactive</div>
+                <div class="level-desc">Strict security. Prompts user for manual validation on every command.</div>
+            </div>
+
+            <!-- Level 1 -->
+            <div class="level-card" id="level-card-1" onclick="setLevel(1)" style="--active-color: var(--accent-green); --active-color-rgb: 63, 185, 80;">
+                <div class="level-badge">
+                    <span>Level 1</span>
+                    <span class="check-icon">✓</span>
+                </div>
+                <div class="level-title">Read-Only YOLO</div>
+                <div class="level-desc">Auto-executes safe, non-destructive discovery commands (ls, cat, grep).</div>
+            </div>
+
+            <!-- Level 2 -->
+            <div class="level-card" id="level-card-2" onclick="setLevel(2)" style="--active-color: var(--accent-orange); --active-color-rgb: 210, 153, 34;">
+                <div class="level-badge">
+                    <span>Level 2</span>
+                    <span class="check-icon">✓</span>
+                </div>
+                <div class="level-title">Scoped YOLO</div>
+                <div class="level-desc">Fine-grained control. Allows custom categories of execution toggles.</div>
+            </div>
+
+            <!-- Level 3 -->
+            <div class="level-card" id="level-card-3" onclick="setLevel(3)" style="--active-color: var(--accent-red); --active-color-rgb: 248, 81, 73;">
+                <div class="level-badge">
+                    <span>Level 3</span>
+                    <span class="check-icon">✓</span>
+                </div>
+                <div class="level-title">Full YOLO</div>
+                <div class="level-desc">Unrestricted execution. Fully autonomous (subject to hard blacklist).</div>
+            </div>
+        </div>
+
+        <!-- Scoped Settings Section -->
+        <div class="scoped-container disabled" id="scoped-section">
+            <h2 class="section-title">📦 Scoped YOLO Customization</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px;">Configure allowed categories and action items. Only checked actions will auto-execute without prompts.</p>
+            
+            <div class="categories-grid">
+                <!-- Package Ops -->
+                <div class="category-card" id="cat-card-package">
+                    <div class="category-header">
+                        <div class="category-info">
+                            <span class="category-icon">📦</span>
+                            <span class="category-name">Package Operations</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="switch-package" onchange="toggleCategory('allowPackageOps', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="actions-panel" id="panel-package">
+                        <div class="action-row"><input type="checkbox" id="action-pkg-install" onchange="toggleAction('allowedPackageActions', 'install')"><div class="action-label"><span>install</span><span class="action-desc">npm install / yarn add</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-pkg-ci" onchange="toggleAction('allowedPackageActions', 'ci')"><div class="action-label"><span>ci</span><span class="action-desc">npm ci</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-pkg-update" onchange="toggleAction('allowedPackageActions', 'update')"><div class="action-label"><span>update</span><span class="action-desc">npm update / upgrade</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-pkg-uninstall" onchange="toggleAction('allowedPackageActions', 'uninstall')"><div class="action-label"><span>uninstall</span><span class="action-desc">npm remove / uninstall</span></div></div>
+                    </div>
+                </div>
+
+                <!-- Git Ops -->
+                <div class="category-card" id="cat-card-git">
+                    <div class="category-header">
+                        <div class="category-info">
+                            <span class="category-icon">🌿</span>
+                            <span class="category-name">Git Operations</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="switch-git" onchange="toggleCategory('allowGitOps', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="actions-panel" id="panel-git">
+                        <div class="action-row"><input type="checkbox" id="action-git-add" onchange="toggleAction('allowedGitActions', 'add')"><div class="action-label"><span>add</span><span class="action-desc">git add</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-commit" onchange="toggleAction('allowedGitActions', 'commit')"><div class="action-label"><span>commit</span><span class="action-desc">git commit</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-push" onchange="toggleAction('allowedGitActions', 'push')"><div class="action-label"><span>push</span><span class="action-desc">git push</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-checkout" onchange="toggleAction('allowedGitActions', 'checkout')"><div class="action-label"><span>checkout</span><span class="action-desc">git checkout</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-branch" onchange="toggleAction('allowedGitActions', 'branch')"><div class="action-label"><span>branch</span><span class="action-desc">git branch</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-pull" onchange="toggleAction('allowedGitActions', 'pull')"><div class="action-label"><span>pull</span><span class="action-desc">git pull</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-fetch" onchange="toggleAction('allowedGitActions', 'fetch')"><div class="action-label"><span>fetch</span><span class="action-desc">git fetch</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-stash" onchange="toggleAction('allowedGitActions', 'stash')"><div class="action-label"><span>stash</span><span class="action-desc">git stash</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-git-reset" onchange="toggleAction('allowedGitActions', 'reset')"><div class="action-label"><span>reset</span><span class="action-desc">git reset</span></div></div>
+                    </div>
+                </div>
+
+                <!-- Build Ops -->
+                <div class="category-card" id="cat-card-build">
+                    <div class="category-header">
+                        <div class="category-info">
+                            <span class="category-icon">🏗️</span>
+                            <span class="category-name">Build Operations</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="switch-build" onchange="toggleCategory('allowBuildOps', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="actions-panel" id="panel-build">
+                        <div class="action-row"><input type="checkbox" id="action-build-tsc" onchange="toggleAction('allowedBuildActions', 'tsc')"><div class="action-label"><span>tsc</span><span class="action-desc">TypeScript compiler</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-build-build" onchange="toggleAction('allowedBuildActions', 'build')"><div class="action-label"><span>build</span><span class="action-desc">npm run build / vite / webpack</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-build-make" onchange="toggleAction('allowedBuildActions', 'make')"><div class="action-label"><span>make</span><span class="action-desc">Make / C++ compilation</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-build-gradle" onchange="toggleAction('allowedBuildActions', 'gradle')"><div class="action-label"><span>gradle</span><span class="action-desc">Gradle builds</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-build-maven" onchange="toggleAction('allowedBuildActions', 'maven')"><div class="action-label"><span>maven</span><span class="action-desc">Maven builds</span></div></div>
+                    </div>
+                </div>
+
+                <!-- Test Ops -->
+                <div class="category-card" id="cat-card-test">
+                    <div class="category-header">
+                        <div class="category-info">
+                            <span class="category-icon">🧪</span>
+                            <span class="category-name">Test Operations</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="switch-test" onchange="toggleCategory('allowTestOps', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="actions-panel" id="panel-test">
+                        <div class="action-row"><input type="checkbox" id="action-test-test" onchange="toggleAction('allowedTestActions', 'test')"><div class="action-label"><span>test</span><span class="action-desc">npm test / cargo test</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-test-pytest" onchange="toggleAction('allowedTestActions', 'pytest')"><div class="action-label"><span>pytest</span><span class="action-desc">Python test runner</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-test-jest" onchange="toggleAction('allowedTestActions', 'jest')"><div class="action-label"><span>jest</span><span class="action-desc">Jest framework</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-test-vitest" onchange="toggleAction('allowedTestActions', 'vitest')"><div class="action-label"><span>vitest</span><span class="action-desc">Vitest framework</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-test-mocha" onchange="toggleAction('allowedTestActions', 'mocha')"><div class="action-label"><span>mocha</span><span class="action-desc">Mocha framework</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-test-playwright" onchange="toggleAction('allowedTestActions', 'playwright')"><div class="action-label"><span>playwright</span><span class="action-desc">Playwright UI tests</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-test-cypress" onchange="toggleAction('allowedTestActions', 'cypress')"><div class="action-label"><span>cypress</span><span class="action-desc">Cypress UI tests</span></div></div>
+                    </div>
+                </div>
+
+                <!-- File Ops -->
+                <div class="category-card" id="cat-card-file">
+                    <div class="category-header">
+                        <div class="category-info">
+                            <span class="category-icon">📂</span>
+                            <span class="category-name">File Operations</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="switch-file" onchange="toggleCategory('allowFileOps', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="actions-panel" id="panel-file">
+                        <div class="action-row"><input type="checkbox" id="action-file-mkdir" onchange="toggleAction('allowedFileActions', 'mkdir')"><div class="action-label"><span>mkdir</span><span class="action-desc">Create directories</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-file-touch" onchange="toggleAction('allowedFileActions', 'touch')"><div class="action-label"><span>touch</span><span class="action-desc">Create empty files</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-file-cp" onchange="toggleAction('allowedFileActions', 'cp')"><div class="action-label"><span>cp</span><span class="action-desc">Copy files/folders</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-file-chmod" onchange="toggleAction('allowedFileActions', 'chmod')"><div class="action-label"><span>chmod</span><span class="action-desc">Change file permissions</span></div></div>
+                        <div class="action-row"><input type="checkbox" id="action-file-chown" onchange="toggleAction('allowedFileActions', 'chown')"><div class="action-label"><span>chown</span><span class="action-desc">Change ownership</span></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Whitelist & Failsafes -->
+        <div class="whitelist-blacklist-grid">
+            <div class="list-card">
+                <h2>📝 Custom Whitelist</h2>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Specify precise command patterns that can auto-execute in Scoped YOLO.</p>
+                <div class="input-group">
+                    <input type="text" id="whitelist-input" placeholder="e.g. npm run dev" onkeydown="if(event.key === 'Enter') addWhitelistItem()">
+                    <button class="btn" onclick="addWhitelistItem()">Add</button>
+                </div>
+                <div class="list-items" id="whitelist-container">
+                    <!-- Whitelist items -->
+                </div>
+            </div>
+
+            <div class="list-card">
+                <h2>🚫 Hard Failsafes (Blacklist)</h2>
+                <p style="color: var(--text-muted); font-size: 0.85rem;">These commands represent immediate security hazards and will <strong>never</strong> auto-run, regardless of active level.</p>
+                <div class="list-items">
+                    <div class="list-item">rm <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
+                    <div class="list-item">mv <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
+                    <div class="list-item">mkfs <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
+                    <div class="list-item">dd <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
+                    <div class="list-item">shutdown <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
+                    <div class="list-item">reboot <span style="color: var(--accent-red); font-size: 0.75rem; font-weight: 500;">CRITICAL</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mock Command Trigger (Dev Mode tool) -->
+        <div class="mock-section">
+            <h2>🧪 Developer Mock Tool Spawner</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Simulate an agent command tool-call to test validation logs, warnings, and settings logic.</p>
+            <div class="input-group">
+                <input type="text" id="mock-cmd-input" placeholder="e.g. git push origin main" value="git commit -m 'test'">
+                <button class="btn" onclick="triggerMock()">Trigger Call</button>
+            </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div class="audit-card">
+            <div class="audit-header">
+                <h2>⏱️ Command Execution Audit Trail</h2>
+                <div class="audit-actions">
+                    <button class="btn clear-btn" onclick="clearLogs()">Clear Log</button>
+                </div>
+            </div>
+            <div class="logs-feed" id="logs-container">
+                <!-- Log entries -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        let currentConfig = {};
+        let currentLogs = [];
+
+        // Notify extension that dashboard is ready
+        vscode.postMessage({ type: 'ready' });
+
+        // Listen for messages from extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.type) {
+                case 'state':
+                    currentConfig = message.config;
+                    currentLogs = message.logs;
+                    updateUI();
+                    break;
+                case 'logs':
+                    currentLogs = message.logs;
+                    renderLogs();
+                    break;
+                case 'config':
+                    currentConfig = message.config;
+                    updateConfigUI();
+                    break;
+            }
+        });
+
+        function updateUI() {
+            updateConfigUI();
+            renderLogs();
+        }
+
+        function updateConfigUI() {
+            // Update Active Level Status bar
+            const statusText = document.getElementById('global-status-text');
+            const statusDot = document.getElementById('global-status-dot');
+            const levels = ['Interactive', 'Read-Only YOLO', 'Scoped YOLO', 'Full YOLO'];
+            const dots = ['#8b949e', 'var(--accent-green)', 'var(--accent-orange)', 'var(--accent-red)'];
+            
+            statusText.innerText = levels[currentConfig.yoloLevel] || 'Interactive';
+            statusDot.style.backgroundColor = dots[currentConfig.yoloLevel] || '#8b949e';
+            statusDot.style.boxShadow = `0 0 10px ${dots[currentConfig.yoloLevel] || '#8b949e'}`;
+
+            // Highlight Level Card
+            for (let i = 0; i <= 3; i++) {
+                const card = document.getElementById(`level-card-${i}`);
+                if (currentConfig.yoloLevel === i) {
+                    card.classList.add('active');
+                } else {
+                    card.classList.remove('active');
+                }
+            }
+
+            // Enable/Disable Scoped customization sections
+            const scopedSection = document.getElementById('scoped-section');
+            if (currentConfig.yoloLevel === 2) {
+                scopedSection.classList.remove('disabled');
+            } else {
+                scopedSection.classList.add('disabled');
+            }
+
+            // Toggles
+            setupCategoryToggle('allowPackageOps', 'switch-package', 'cat-card-package');
+            setupCategoryToggle('allowGitOps', 'switch-git', 'cat-card-git');
+            setupCategoryToggle('allowBuildOps', 'switch-build', 'cat-card-build');
+            setupCategoryToggle('allowTestOps', 'switch-test', 'cat-card-test');
+            setupCategoryToggle('allowFileOps', 'switch-file', 'cat-card-file');
+
+            // Action Checkboxes
+            setupActionCheckboxes('allowedPackageActions', ['install', 'ci', 'update', 'uninstall'], 'pkg');
+            setupActionCheckboxes('allowedGitActions', ['add', 'commit', 'push', 'checkout', 'branch', 'pull', 'fetch', 'stash', 'reset'], 'git');
+            setupActionCheckboxes('allowedBuildActions', ['tsc', 'build', 'make', 'gradle', 'maven'], 'build');
+            setupActionCheckboxes('allowedTestActions', ['test', 'pytest', 'jest', 'vitest', 'mocha', 'playwright', 'cypress'], 'test');
+            setupActionCheckboxes('allowedFileActions', ['mkdir', 'touch', 'cp', 'chmod', 'chown'], 'file');
+
+            // Render Custom Whitelist
+            renderWhitelist();
+        }
+
+        function setupCategoryToggle(configKey, switchId, cardId) {
+            const isEnabled = !!currentConfig[configKey];
+            const sw = document.getElementById(switchId);
+            sw.checked = isEnabled;
+
+            const card = document.getElementById(cardId);
+            if (isEnabled) {
+                card.classList.add('expanded');
+            } else {
+                card.classList.remove('expanded');
+            }
+        }
+
+        function setupActionCheckboxes(configKey, possibleActions, prefix) {
+            const activeActions = currentConfig[configKey] || [];
+            possibleActions.forEach(action => {
+                const el = document.getElementById(`action-${prefix}-${action}`);
+                if (el) {
+                    el.checked = activeActions.includes(action);
+                }
+            });
+        }
+
+        function setLevel(level) {
+            currentConfig.yoloLevel = level;
+            vscode.postMessage({ type: 'updateConfig', key: 'yoloLevel', value: level });
+        }
+
+        function toggleCategory(key, isChecked) {
+            currentConfig[key] = isChecked;
+            vscode.postMessage({ type: 'updateConfig', key: key, value: isChecked });
+        }
+
+        function toggleAction(configKey, actionVal) {
+            const list = [...(currentConfig[configKey] || [])];
+            const idx = list.indexOf(actionVal);
+            if (idx === -1) {
+                list.push(actionVal);
+            } else {
+                list.splice(idx, 1);
+            }
+            currentConfig[configKey] = list;
+            vscode.postMessage({ type: 'updateConfig', key: configKey, value: list });
+        }
+
+        function renderWhitelist() {
+            const container = document.getElementById('whitelist-container');
+            container.innerHTML = '';
+            
+            const list = currentConfig.whitelist || [];
+            if (list.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center;">No custom whitelisted patterns.</div>';
+                return;
+            }
+
+            list.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'list-item';
+                row.innerHTML = `
+                    <span>${escapeHtml(item)}</span>
+                    <button class="delete-btn" onclick="removeWhitelistItem('${item.replace(/'/g, "\\'")}')">
+                        🗑️
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function addWhitelistItem() {
+            const input = document.getElementById('whitelist-input');
+            const val = input.value.trim();
+            if (val) {
+                vscode.postMessage({ type: 'addWhitelist', command: val });
+                input.value = '';
+            }
+        }
+
+        function removeWhitelistItem(val) {
+            vscode.postMessage({ type: 'removeWhitelist', command: val });
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logs-container');
+            container.innerHTML = '';
+
+            if (currentLogs.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 32px; text-align: center;">No command executions logged yet.</div>';
+                return;
+            }
+
+            currentLogs.forEach(log => {
+                const row = document.createElement('div');
+                row.className = 'log-row';
+                row.id = `log-row-${log.id}`;
+                
+                const badgeClass = getBadgeClass(log.status);
+                const duration = log.durationMs ? `${log.durationMs}ms` : '-';
+                const outputSection = log.output ? `
+                    <div class="log-detail">
+                        <div class="log-console-header">Console Output / Log Trace</div>
+                        <div class="log-console">${escapeHtml(log.output)}</div>
+                    </div>
+                ` : '';
+
+                row.innerHTML = `
+                    <div class="log-summary" onclick="toggleLogDetail('${log.id}')">
+                        <div class="log-time">${log.timestamp}</div>
+                        <div class="log-level">${log.level}</div>
+                        <div class="log-cmd" title="${escapeHtml(log.commandLine)}">${escapeHtml(log.commandLine)}</div>
+                        <div><span class="log-status-badge ${badgeClass}">${log.status}</span></div>
+                        <div class="log-duration">${duration}</div>
+                    </div>
+                    ${outputSection}
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function getBadgeClass(status) {
+            switch (status) {
+                case 'Allowed': return 'badge-allowed';
+                case 'Approved': return 'badge-approved';
+                case 'Denied': return 'badge-denied';
+                case 'Blocked': return 'badge-blocked';
+                case 'Running': return 'badge-running';
+                case 'Completed': return 'badge-completed';
+                case 'Failed': return 'badge-failed';
+                case 'Timed Out': return 'badge-timeout';
+                default: return '';
+            }
+        }
+
+        function toggleLogDetail(id) {
+            const row = document.getElementById(`log-row-${id}`);
+            if (row) {
+                row.classList.toggle('expanded');
+            }
+        }
+
+        function clearLogs() {
+            vscode.postMessage({ type: 'clearLogs' });
+        }
+
+        function triggerMock() {
+            const input = document.getElementById('mock-cmd-input');
+            const fullVal = input.value.trim();
+            if (!fullVal) return;
+
+            const parts = fullVal.split(/\s+/);
+            const cmd = parts[0];
+            const args = parts.slice(1);
+
+            vscode.postMessage({
+                type: 'triggerMockCommand',
+                command: cmd,
+                args: args
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
