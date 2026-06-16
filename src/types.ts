@@ -19,4 +19,6 @@ export interface AntiYoloConfig {
 	allowedGitActions: string[];
 	allowFileOps: boolean;
 	allowedFileActions: string[];
+	restrictToWorkspace: boolean;
+	workspaceFolders: string[];
 }

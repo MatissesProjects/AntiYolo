@@ -15,7 +15,9 @@ const BASE_CONFIG: AntiYoloConfig = {
 	allowGitOps: false,
 	allowedGitActions: [],
 	allowFileOps: false,
-	allowedFileActions: []
+	allowedFileActions: [],
+	restrictToWorkspace: false,
+	workspaceFolders: []
 };
 
 describe('CommandValidator Security & Features', () => {
@@ -219,6 +221,73 @@ describe('CommandValidator Security & Features', () => {
 
 			assert.strictEqual(result1.execute, true);
 			assert.strictEqual(result2.execute, true);
+		});
+	});
+
+	describe('Workspace Safety Boundary (restrictToWorkspace)', () => {
+		const path = require('path');
+		const workspace = path.resolve('test-workspace');
+		const insidePath = path.join(workspace, 'src', 'main.ts');
+		const outsidePath = path.resolve(path.join(workspace, '..', 'outside-file.txt'));
+		const relativeOutside = path.join('..', 'outside-file.txt');
+
+		const CONFIG_WITH_RESTRICT: AntiYoloConfig = {
+			...BASE_CONFIG,
+			yoloLevel: YoloLevel.ReadOnly,
+			restrictToWorkspace: true,
+			workspaceFolders: [workspace]
+		};
+
+		it('should allow reading files inside the workspace', () => {
+			const result = CommandValidator.validate('cat', [insidePath], CONFIG_WITH_RESTRICT);
+			assert.strictEqual(result.execute, true);
+			assert.strictEqual(result.promptRequired, false);
+		});
+
+		it('should block absolute paths outside the workspace', () => {
+			const result = CommandValidator.validate('cat', [outsidePath], CONFIG_WITH_RESTRICT);
+			assert.strictEqual(result.execute, false);
+			assert.strictEqual(result.promptRequired, true);
+			assert.ok(result.reason?.includes('references a path outside the workspace'));
+		});
+
+		it('should block relative paths escaping the workspace via traversal', () => {
+			const result = CommandValidator.validate('cat', [relativeOutside], CONFIG_WITH_RESTRICT);
+			assert.strictEqual(result.execute, false);
+			assert.strictEqual(result.promptRequired, true);
+			assert.ok(result.reason?.includes('references a path outside the workspace'));
+		});
+
+		it('should allow paths when restrictToWorkspace is false', () => {
+			const configDisabled = { ...CONFIG_WITH_RESTRICT, restrictToWorkspace: false };
+			const result = CommandValidator.validate('cat', [outsidePath], configDisabled);
+			assert.strictEqual(result.execute, true);
+			assert.strictEqual(result.promptRequired, false);
+		});
+
+		it('should block nested shell commands pointing outside workspace', () => {
+			const result = CommandValidator.validate('bash', ['-c', `cat ${relativeOutside}`], CONFIG_WITH_RESTRICT);
+			assert.strictEqual(result.execute, false);
+			assert.strictEqual(result.promptRequired, true);
+		});
+
+		it('should allow options with values pointing inside workspace and block those pointing outside', () => {
+			const resultInside = CommandValidator.validate('touch', [`--file=${insidePath}`], {
+				...CONFIG_WITH_RESTRICT,
+				yoloLevel: YoloLevel.Scoped,
+				allowFileOps: true,
+				allowedFileActions: ['touch']
+			});
+			assert.strictEqual(resultInside.execute, true);
+
+			const resultOutside = CommandValidator.validate('touch', [`--file=${outsidePath}`], {
+				...CONFIG_WITH_RESTRICT,
+				yoloLevel: YoloLevel.Scoped,
+				allowFileOps: true,
+				allowedFileActions: ['touch']
+			});
+			assert.strictEqual(resultOutside.execute, false);
+			assert.strictEqual(resultOutside.promptRequired, true);
 		});
 	});
 });

@@ -119,6 +119,11 @@
           },
           "default": ["mkdir", "touch"],
           "description": "Allowed file operations in Level 2."
+        },
+        "antiyolo.restrictToWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Restrict file operations and path arguments to the workspace folder(s) for additional safety."
         }
       }
     }

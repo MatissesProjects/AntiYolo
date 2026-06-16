@@ -23,6 +23,8 @@ export function getConfig(): AntiYoloConfig {
 	const allowedGitActions = config.get<string[]>('allowedGitActions', ["add", "commit", "push", "checkout", "branch", "status", "diff"]);
 	const allowFileOps = config.get<boolean>('allowFileOps', false);
 	const allowedFileActions = config.get<string[]>('allowedFileActions', ["mkdir", "touch"]);
+	const restrictToWorkspace = config.get<boolean>('restrictToWorkspace', true);
+	const workspaceFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) || [];
 
 	return {
 		yoloLevel,
@@ -37,6 +39,8 @@ export function getConfig(): AntiYoloConfig {
 		allowGitOps,
 		allowedGitActions,
 		allowFileOps,
-		allowedFileActions
+		allowedFileActions,
+		restrictToWorkspace,
+		workspaceFolders
 	};
 }

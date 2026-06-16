@@ -64,12 +64,21 @@ export class CommandInterceptor {
 				const choice = await vscode.window.showWarningMessage(
 					`AntiYolo Alert\n\nAgent requested to run:\n${fullCmd}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
 					{ modal: true },
-					'Execute', 'Cancel'
+					'Execute', 'Always Execute', 'Cancel'
 				);
 
-				if (choice !== 'Execute') {
+				if (choice !== 'Execute' && choice !== 'Always Execute') {
 					logger.updateLog(logId, { status: 'Denied', output: 'Cancelled by user.' });
 					return 'Error: Execution cancelled by user.';
+				}
+
+				if (choice === 'Always Execute') {
+					const configObj = vscode.workspace.getConfiguration('antiyolo');
+					const currentWhitelist = configObj.get<string[]>('whitelist', []);
+					if (!currentWhitelist.includes(fullCmd)) {
+						currentWhitelist.push(fullCmd);
+						await configObj.update('whitelist', currentWhitelist, vscode.ConfigurationTarget.Global);
+					}
 				}
 
 				logger.updateLog(logId, { status: 'Approved' });

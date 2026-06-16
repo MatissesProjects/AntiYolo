@@ -529,6 +529,55 @@ export class CommandValidator {
 		};
 	}
 
+	private static isPathOutsideWorkspace(arg: string, workspaceFolders: string[]): boolean {
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			return false;
+		}
+
+		const checkAbsolutePath = (absPath: string): boolean => {
+			const normalized = path.normalize(absPath).toLowerCase();
+			for (const folder of workspaceFolders) {
+				const normalizedFolder = path.normalize(folder).toLowerCase();
+				const relative = path.relative(normalizedFolder, normalized);
+				if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+					return false;
+				}
+			}
+			return true;
+		};
+
+		let target = arg;
+		if (arg.includes('=')) {
+			const parts = arg.split('=');
+			target = parts.slice(1).join('=');
+		}
+
+		target = target.replace(/^['"]|['"]$/g, '');
+
+		const hasSeparators = target.includes('/') || target.includes('\\');
+		const hasTraversal = target.includes('..');
+		const isAbsolute = path.isAbsolute(target) || /^[a-zA-Z]:[/\\]/.test(target);
+
+		if (isAbsolute) {
+			return checkAbsolutePath(target);
+		}
+
+		if (hasTraversal || hasSeparators) {
+			for (const folder of workspaceFolders) {
+				const resolved = path.resolve(folder, target);
+				const normalized = path.normalize(resolved).toLowerCase();
+				const normalizedFolder = path.normalize(folder).toLowerCase();
+				const relative = path.relative(normalizedFolder, normalized);
+				if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		return false;
+	}
+
 	public static validate(command: string, args: string[], config: AntiYoloConfig): ValidationResult {
 		return this.validateInternal(command, args, config, 0);
 	}
@@ -671,6 +720,18 @@ export class CommandValidator {
 
 		if (!allowed) {
 			return { execute: false, promptRequired: true, reason: `Command '${fullCommandStr}' is not whitelisted for Level ${config.yoloLevel}.` };
+		}
+
+		if (config.restrictToWorkspace && config.workspaceFolders && config.workspaceFolders.length > 0) {
+			for (const arg of unwrapped.args) {
+				if (this.isPathOutsideWorkspace(arg, config.workspaceFolders)) {
+					return {
+						execute: false,
+						promptRequired: true,
+						reason: `Command references a path outside the workspace: '${arg}'`
+					};
+				}
+			}
 		}
 
 		return { execute: true, promptRequired: false };

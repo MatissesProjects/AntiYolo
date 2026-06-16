@@ -660,8 +660,22 @@
 
         <!-- Scoped Settings Section -->
         <div class="scoped-container disabled" id="scoped-section">
-            <h2 class="section-title">📦 Scoped YOLO Customization</h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px;">Configure allowed categories and action items. Only checked actions will auto-execute without prompts.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--panel-border); padding-bottom: 12px;">
+                <div>
+                    <h2 class="section-title">📦 Scoped YOLO Customization</h2>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Configure allowed categories and action items. Only checked actions will auto-execute without prompts.</p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--panel-border);">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-size: 0.85rem; font-weight: 600;">🔒 Workspace Safety Boundary</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">Prevent commands from referencing paths outside workspace</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-restrict" onchange="vscode.postMessage({ type: 'updateConfig', key: 'restrictToWorkspace', value: this.checked })">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
             
             <div class="categories-grid">
                 <!-- Package Ops -->
@@ -896,6 +910,7 @@
             setupCategoryToggle('allowBuildOps', 'switch-build', 'cat-card-build');
             setupCategoryToggle('allowTestOps', 'switch-test', 'cat-card-test');
             setupCategoryToggle('allowFileOps', 'switch-file', 'cat-card-file');
+            document.getElementById('switch-restrict').checked = !!currentConfig.restrictToWorkspace;
 
             // Action Checkboxes
             setupActionCheckboxes('allowedPackageActions', ['install', 'ci', 'update', 'uninstall'], 'pkg');
@@ -989,6 +1004,10 @@
             vscode.postMessage({ type: 'removeWhitelist', command: val });
         }
 
+        function whitelistCommand(val) {
+            vscode.postMessage({ type: 'addWhitelist', command: val });
+        }
+
         function renderLogs() {
             const container = document.getElementById('logs-container');
             container.innerHTML = '';
@@ -1005,10 +1024,13 @@
                 
                 const badgeClass = getBadgeClass(log.status);
                 const duration = log.durationMs ? `${log.durationMs}ms` : '-';
-                const outputSection = log.output ? `
+                const outputSection = log.status !== 'Running' ? `
                     <div class="log-detail">
-                        <div class="log-console-header">Console Output / Log Trace</div>
-                        <div class="log-console">${escapeHtml(log.output)}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div class="log-console-header">Console Output / Log Trace</div>
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--accent-blue);" onclick="event.stopPropagation(); whitelistCommand('${escapeHtml(log.commandLine)}')">➕ Whitelist Command</button>
+                        </div>
+                        <div class="log-console">${escapeHtml(log.output || 'No console output logged.')}</div>
                     </div>
                 ` : '';
 
