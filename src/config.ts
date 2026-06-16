@@ -25,6 +25,7 @@ export function getConfig(): AntiYoloConfig {
 	const allowedFileActions = config.get<string[]>('allowedFileActions', ["mkdir", "touch"]);
 	const restrictToWorkspace = config.get<boolean>('restrictToWorkspace', true);
 	const workspaceFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) || [];
+	const enabled = config.get<boolean>('enabled', true);
 
 	return {
 		yoloLevel,
@@ -41,6 +42,7 @@ export function getConfig(): AntiYoloConfig {
 		allowFileOps,
 		allowedFileActions,
 		restrictToWorkspace,
-		workspaceFolders
+		workspaceFolders,
+		enabled
 	};
 }

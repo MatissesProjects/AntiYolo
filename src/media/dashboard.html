@@ -605,17 +605,33 @@
 <body>
     <div class="container">
         <!-- Header -->
-        <header>
-            <div class="logo-section">
-                <h1>🛡️ AntiYolo</h1>
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="logo-section" style="display: flex; align-items: center; gap: 12px;">
+                <h1 style="margin: 0;">🛡️ AntiYolo</h1>
+                <div class="status-pill" style="margin: 0;">
+                    <span class="status-dot" id="global-status-dot"></span>
+                    <span id="global-status-text">Interactive</span>
+                </div>
             </div>
-            <div class="status-pill">
-                <span class="status-dot" id="global-status-dot"></span>
-                <span id="global-status-text">Interactive</span>
+            <div style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.03); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--panel-border);">
+                <span style="font-size: 0.85rem; font-weight: 600;" id="power-toggle-label">Active Protection</span>
+                <label class="switch">
+                    <input type="checkbox" id="switch-global-enable" onchange="vscode.postMessage({ type: 'updateConfig', key: 'enabled', value: this.checked })">
+                    <span class="slider"></span>
+                </label>
             </div>
         </header>
 
-        <!-- Levels -->
+        <!-- Bypassed Banner -->
+        <div id="bypassed-banner" style="display: none; background: rgba(248, 81, 73, 0.15); border: 1px solid var(--accent-red); color: var(--accent-red); padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; font-weight: 500; align-items: center; gap: 10px; box-shadow: 0 0 10px rgba(248, 81, 73, 0.1);">
+            <span style="font-size: 1.2rem;">⚠️</span>
+            <div>
+                <strong style="color: #ff6b6b;">Protection Bypassed:</strong> All commands requested by the agent will be executed immediately without validation, workspace safety boundary checks, or confirmation prompts.
+            </div>
+        </div>
+
+        <div id="main-settings-content" style="transition: opacity 0.3s ease, filter 0.3s ease;">
+            <!-- Levels -->
         <div class="levels-grid">
             <!-- Level 0 -->
             <div class="level-card" id="level-card-0" onclick="setLevel(0)" style="--active-color: var(--text-muted); --active-color-rgb: 139, 148, 158;">
@@ -818,6 +834,8 @@
             </div>
         </div>
 
+        </div>
+
         <!-- Mock Command Trigger (Dev Mode tool) -->
         <div class="mock-section">
             <h2>🧪 Developer Mock Tool Spawner</h2>
@@ -879,12 +897,35 @@
             // Update Active Level Status bar
             const statusText = document.getElementById('global-status-text');
             const statusDot = document.getElementById('global-status-dot');
-            const levels = ['Interactive', 'Read-Only YOLO', 'Scoped YOLO', 'Full YOLO'];
-            const dots = ['#8b949e', 'var(--accent-green)', 'var(--accent-orange)', 'var(--accent-red)'];
-            
-            statusText.innerText = levels[currentConfig.yoloLevel] || 'Interactive';
-            statusDot.style.backgroundColor = dots[currentConfig.yoloLevel] || '#8b949e';
-            statusDot.style.boxShadow = `0 0 10px ${dots[currentConfig.yoloLevel] || '#8b949e'}`;
+            const powerToggleLabel = document.getElementById('power-toggle-label');
+            const globalEnableSwitch = document.getElementById('switch-global-enable');
+            const bypassedBanner = document.getElementById('bypassed-banner');
+            const mainSettingsContent = document.getElementById('main-settings-content');
+
+            globalEnableSwitch.checked = !!currentConfig.enabled;
+
+            if (!currentConfig.enabled) {
+                statusText.innerText = 'Bypassed';
+                statusDot.style.backgroundColor = '#8b949e';
+                statusDot.style.boxShadow = 'none';
+                powerToggleLabel.innerText = 'Safety Bypassed';
+                powerToggleLabel.style.color = 'var(--text-muted)';
+                bypassedBanner.style.display = 'flex';
+                mainSettingsContent.style.opacity = '0.4';
+                mainSettingsContent.style.pointerEvents = 'none';
+            } else {
+                const levels = ['Interactive', 'Read-Only YOLO', 'Scoped YOLO', 'Full YOLO'];
+                const dots = ['#8b949e', 'var(--accent-green)', 'var(--accent-orange)', 'var(--accent-red)'];
+                
+                statusText.innerText = levels[currentConfig.yoloLevel] || 'Interactive';
+                statusDot.style.backgroundColor = dots[currentConfig.yoloLevel] || '#8b949e';
+                statusDot.style.boxShadow = `0 0 10px ${dots[currentConfig.yoloLevel] || '#8b949e'}`;
+                powerToggleLabel.innerText = 'Active Protection';
+                powerToggleLabel.style.color = '';
+                bypassedBanner.style.display = 'none';
+                mainSettingsContent.style.opacity = '1';
+                mainSettingsContent.style.pointerEvents = 'auto';
+            }
 
             // Highlight Level Card
             for (let i = 0; i <= 3; i++) {

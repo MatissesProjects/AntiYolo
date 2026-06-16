@@ -23,6 +23,18 @@
       {
         "command": "antiyolo.showDashboard",
         "title": "AntiYolo: Show Dashboard"
+      },
+      {
+        "command": "antiyolo.toggleEnabled",
+        "title": "AntiYolo: Toggle Enabled State"
+      },
+      {
+        "command": "antiyolo.toggleRestrictToWorkspace",
+        "title": "AntiYolo: Toggle Workspace Safety Boundary"
+      },
+      {
+        "command": "antiyolo.showMenu",
+        "title": "AntiYolo: Show Quick Options Menu"
       }
     ],
     "configuration": {
@@ -124,6 +136,11 @@
           "type": "boolean",
           "default": true,
           "description": "Restrict file operations and path arguments to the workspace folder(s) for additional safety."
+        },
+        "antiyolo.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable AntiYolo command validation and interception globally."
         }
       }
     }

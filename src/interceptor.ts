@@ -42,52 +42,60 @@ export class CommandInterceptor {
 			const logger = CommandLogger.getInstance();
 			let logId = '';
 
-			const validation = CommandValidator.validate(command, args, config);
-
-			if (!validation.execute && !validation.promptRequired) {
-				logger.addLog({
-					commandLine: fullCmd,
-					level: levelName,
-					status: 'Blocked',
-					output: validation.reason || 'Blocked by security policy.'
-				});
-				return `Error: Execution blocked. ${validation.reason || ''}`;
-			}
-
-			if (validation.promptRequired) {
+			if (!config.enabled) {
 				logId = logger.addLog({
 					commandLine: fullCmd,
-					level: levelName,
-					status: 'Running'
-				});
-
-				const choice = await vscode.window.showWarningMessage(
-					`AntiYolo Alert\n\nAgent requested to run:\n${fullCmd}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
-					{ modal: true },
-					'Execute', 'Always Execute', 'Cancel'
-				);
-
-				if (choice !== 'Execute' && choice !== 'Always Execute') {
-					logger.updateLog(logId, { status: 'Denied', output: 'Cancelled by user.' });
-					return 'Error: Execution cancelled by user.';
-				}
-
-				if (choice === 'Always Execute') {
-					const configObj = vscode.workspace.getConfiguration('antiyolo');
-					const currentWhitelist = configObj.get<string[]>('whitelist', []);
-					if (!currentWhitelist.includes(fullCmd)) {
-						currentWhitelist.push(fullCmd);
-						await configObj.update('whitelist', currentWhitelist, vscode.ConfigurationTarget.Global);
-					}
-				}
-
-				logger.updateLog(logId, { status: 'Approved' });
-			} else {
-				logId = logger.addLog({
-					commandLine: fullCmd,
-					level: levelName,
+					level: 'Bypassed',
 					status: 'Allowed'
 				});
+			} else {
+				const validation = CommandValidator.validate(command, args, config);
+
+				if (!validation.execute && !validation.promptRequired) {
+					logger.addLog({
+						commandLine: fullCmd,
+						level: levelName,
+						status: 'Blocked',
+						output: validation.reason || 'Blocked by security policy.'
+					});
+					return `Error: Execution blocked. ${validation.reason || ''}`;
+				}
+
+				if (validation.promptRequired) {
+					logId = logger.addLog({
+						commandLine: fullCmd,
+						level: levelName,
+						status: 'Running'
+					});
+
+					const choice = await vscode.window.showWarningMessage(
+						`AntiYolo Alert\n\nAgent requested to run:\n${fullCmd}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
+						{ modal: true },
+						'Execute', 'Always Execute', 'Cancel'
+					);
+
+					if (choice !== 'Execute' && choice !== 'Always Execute') {
+						logger.updateLog(logId, { status: 'Denied', output: 'Cancelled by user.' });
+						return 'Error: Execution cancelled by user.';
+					}
+
+					if (choice === 'Always Execute') {
+						const configObj = vscode.workspace.getConfiguration('antiyolo');
+						const currentWhitelist = configObj.get<string[]>('whitelist', []);
+						if (!currentWhitelist.includes(fullCmd)) {
+							currentWhitelist.push(fullCmd);
+							await configObj.update('whitelist', currentWhitelist, vscode.ConfigurationTarget.Global);
+						}
+					}
+
+					logger.updateLog(logId, { status: 'Approved' });
+				} else {
+					logId = logger.addLog({
+						commandLine: fullCmd,
+						level: levelName,
+						status: 'Allowed'
+					});
+				}
 			}
 
 			const startTime = Date.now();

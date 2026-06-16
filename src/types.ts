@@ -21,4 +21,5 @@ export interface AntiYoloConfig {
 	allowedFileActions: string[];
 	restrictToWorkspace: boolean;
 	workspaceFolders: string[];
+	enabled: boolean;
 }

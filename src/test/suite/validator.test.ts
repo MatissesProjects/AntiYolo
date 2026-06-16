@@ -17,7 +17,8 @@ const BASE_CONFIG: AntiYoloConfig = {
 	allowFileOps: false,
 	allowedFileActions: [],
 	restrictToWorkspace: false,
-	workspaceFolders: []
+	workspaceFolders: [],
+	enabled: true
 };
 
 describe('CommandValidator Security & Features', () => {
