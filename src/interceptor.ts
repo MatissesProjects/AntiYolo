@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { getConfig } from './config';
 import { CommandValidator } from './validator';
 import { executeStructuredCommand } from './executor';
+import { CommandLogger } from './logger';
 
 interface ToolPayload {
 	command: string;
@@ -33,16 +34,33 @@ export class CommandInterceptor {
 
 			const command = payload.command;
 			const args = Array.isArray(payload.args) ? payload.args : [];
+			const fullCmd = [command, ...args].join(' ');
 
 			const config = getConfig();
+			const levelName = ['Interactive (0)', 'Read-Only (1)', 'Scoped (2)', 'Full (3)'][config.yoloLevel];
+			
+			const logger = CommandLogger.getInstance();
+			let logId = '';
+
 			const validation = CommandValidator.validate(command, args, config);
 
 			if (!validation.execute && !validation.promptRequired) {
+				logger.addLog({
+					commandLine: fullCmd,
+					level: levelName,
+					status: 'Blocked',
+					output: validation.reason || 'Blocked by security policy.'
+				});
 				return `Error: Execution blocked. ${validation.reason || ''}`;
 			}
 
 			if (validation.promptRequired) {
-				const fullCmd = [command, ...args].join(' ');
+				logId = logger.addLog({
+					commandLine: fullCmd,
+					level: levelName,
+					status: 'Running'
+				});
+
 				const choice = await vscode.window.showWarningMessage(
 					`AntiYolo Alert\n\nAgent requested to run:\n${fullCmd}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
 					{ modal: true },
@@ -50,11 +68,37 @@ export class CommandInterceptor {
 				);
 
 				if (choice !== 'Execute') {
+					logger.updateLog(logId, { status: 'Denied', output: 'Cancelled by user.' });
 					return 'Error: Execution cancelled by user.';
 				}
+
+				logger.updateLog(logId, { status: 'Approved' });
+			} else {
+				logId = logger.addLog({
+					commandLine: fullCmd,
+					level: levelName,
+					status: 'Allowed'
+				});
 			}
 
-			return await executeStructuredCommand(command, args, cwd, config.timeoutSeconds * 1000);
+			const startTime = Date.now();
+			const result = await executeStructuredCommand(command, args, cwd, config.timeoutSeconds * 1000);
+			const durationMs = Date.now() - startTime;
+
+			let finalStatus: 'Completed' | 'Timed Out' | 'Failed' = 'Completed';
+			if (result.startsWith('[error]\nExecution timed out')) {
+				finalStatus = 'Timed Out';
+			} else if (result.includes('[exit]\nProcess exited with code') || result.includes('[error]\n')) {
+				finalStatus = 'Failed';
+			}
+
+			logger.updateLog(logId, {
+				status: finalStatus,
+				durationMs,
+				output: result
+			});
+
+			return result;
 		});
 
 		this.context.subscriptions.push(disposable);
