@@ -2,11 +2,21 @@ import * as vscode from 'vscode';
 import { CommandInterceptor } from './interceptor';
 import { AntiYoloDashboard } from './dashboard';
 import { AntiYoloStatusBar } from './statusbar';
+import { LocalApprovalServer } from './server';
+import { getConfig } from './config';
+
+let approvalServer: LocalApprovalServer | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('AntiYolo extension is now active!');
 	
-	const interceptor = new CommandInterceptor(context);
+	approvalServer = new LocalApprovalServer();
+	const config = getConfig();
+	approvalServer.start(config.localServerPort).catch(err => {
+		vscode.window.showErrorMessage(`Failed to start AntiYolo Local Approval Server: ${err.message}`);
+	});
+
+	const interceptor = new CommandInterceptor(context, approvalServer);
 	interceptor.register();
 
 	const statusBar = new AntiYoloStatusBar(context);
@@ -36,6 +46,24 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.showInformationMessage(`Workspace Safety Boundary is now ${!current ? 'Enabled' : 'Disabled'}.`);
 	});
 	context.subscriptions.push(toggleRestrictDisposable);
+
+	const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async (e) => {
+		if (e.affectsConfiguration('antiyolo.localServerPort') && approvalServer) {
+			const newConfig = getConfig();
+			await approvalServer.stop();
+			try {
+				await approvalServer.start(newConfig.localServerPort);
+				vscode.window.showInformationMessage(`AntiYolo Local Server started on port ${newConfig.localServerPort}`);
+			} catch (err) {
+				vscode.window.showErrorMessage(`Failed to restart AntiYolo Local Server on port ${newConfig.localServerPort}: ${(err as Error).message}`);
+			}
+		}
+	});
+	context.subscriptions.push(configChangeDisposable);
 }
 
-export function deactivate() {}
+export async function deactivate() {
+	if (approvalServer) {
+		await approvalServer.stop();
+	}
+}
