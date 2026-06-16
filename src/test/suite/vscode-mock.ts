@@ -15,9 +15,9 @@ export const vscodeMock = {
 
 // Intercept module require calls for 'vscode'
 const originalRequire = Module.prototype.require;
-Module.prototype.require = function (this: any, id: string) {
+(Module.prototype as any).require = function (this: any, id: string) {
 	if (id === 'vscode') {
 		return vscodeMock;
 	}
 	return originalRequire.apply(this, arguments as any);
-};
+} as any;
