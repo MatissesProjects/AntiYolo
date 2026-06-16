@@ -21,5 +21,8 @@ export interface AntiYoloConfig {
 	allowedFileActions: string[];
 	restrictToWorkspace: boolean;
 	workspaceFolders: string[];
+	enableDiscord: boolean;
+	discordWebhookUrl: string;
+	localServerPort: number;
 	enabled: boolean;
 }

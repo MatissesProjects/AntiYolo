@@ -25,6 +25,9 @@ export function getConfig(): AntiYoloConfig {
 	const allowedFileActions = config.get<string[]>('allowedFileActions', ["mkdir", "touch"]);
 	const restrictToWorkspace = config.get<boolean>('restrictToWorkspace', true);
 	const workspaceFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) || [];
+	const enableDiscord = config.get<boolean>('enableDiscord', false);
+	const discordWebhookUrl = config.get<string>('discordWebhookUrl', '');
+	const localServerPort = config.get<number>('localServerPort', 7788);
 	const enabled = config.get<boolean>('enabled', true);
 
 	return {
@@ -43,6 +46,9 @@ export function getConfig(): AntiYoloConfig {
 		allowedFileActions,
 		restrictToWorkspace,
 		workspaceFolders,
+		enableDiscord,
+		discordWebhookUrl,
+		localServerPort,
 		enabled
 	};
 }

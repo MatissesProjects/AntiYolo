@@ -137,6 +137,23 @@
           "default": true,
           "description": "Restrict file operations and path arguments to the workspace folder(s) for additional safety."
         },
+        "antiyolo.enableDiscord": {
+          "type": "boolean",
+          "default": false,
+          "description": "Send blocked or confirmation-required command alerts to Discord."
+        },
+        "antiyolo.discordWebhookUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Discord Webhook URL to receive command approval requests."
+        },
+        "antiyolo.localServerPort": {
+          "type": "integer",
+          "default": 7788,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Local port to run the HTTP redirect server for Discord approvals."
+        },
         "antiyolo.enabled": {
           "type": "boolean",
           "default": true,
