@@ -19,6 +19,10 @@
       {
         "command": "antiyolo.runCommand",
         "title": "AntiYolo: Run Agent Command"
+      },
+      {
+        "command": "antiyolo.showDashboard",
+        "title": "AntiYolo: Show Dashboard"
       }
     ],
     "configuration": {
@@ -45,6 +49,76 @@
           "minimum": 1,
           "maximum": 60,
           "description": "Maximum execution time in seconds for a single YOLO command."
+        },
+        "antiyolo.allowPackageOps": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable auto-execution of package management commands in Level 2."
+        },
+        "antiyolo.allowedPackageActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["install", "ci", "update", "uninstall"]
+          },
+          "default": ["install", "ci", "update"],
+          "description": "Allowed package management actions in Level 2."
+        },
+        "antiyolo.allowTestOps": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable auto-execution of test execution commands in Level 2."
+        },
+        "antiyolo.allowedTestActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["test", "pytest", "jest", "vitest", "mocha", "playwright", "cypress"]
+          },
+          "default": ["test", "pytest", "jest", "vitest"],
+          "description": "Allowed test runners and frameworks in Level 2."
+        },
+        "antiyolo.allowBuildOps": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable auto-execution of build and compilation commands in Level 2."
+        },
+        "antiyolo.allowedBuildActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["tsc", "build", "make", "gradle", "maven"]
+          },
+          "default": ["tsc", "build", "make"],
+          "description": "Allowed build tools and compilation command types in Level 2."
+        },
+        "antiyolo.allowGitOps": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable auto-execution of version control commands in Level 2."
+        },
+        "antiyolo.allowedGitActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["add", "commit", "push", "checkout", "branch", "pull", "fetch", "stash", "reset"]
+          },
+          "default": ["add", "commit", "push", "checkout", "branch", "status", "diff"],
+          "description": "Allowed Git operations in Level 2."
+        },
+        "antiyolo.allowFileOps": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable auto-execution of file/directory operations in Level 2."
+        },
+        "antiyolo.allowedFileActions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["mkdir", "touch", "cp", "chmod", "chown"]
+          },
+          "default": ["mkdir", "touch"],
+          "description": "Allowed file operations in Level 2."
         }
       }
     }

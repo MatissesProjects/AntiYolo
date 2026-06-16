@@ -1,17 +1,33 @@
 import * as assert from 'assert';
 import { CommandValidator } from '../../validator';
-import { YoloLevel } from '../../types';
+import { YoloLevel, AntiYoloConfig } from '../../types';
+
+const BASE_CONFIG: AntiYoloConfig = {
+	yoloLevel: YoloLevel.Full,
+	whitelist: [],
+	timeoutSeconds: 15,
+	allowPackageOps: false,
+	allowedPackageActions: [],
+	allowTestOps: false,
+	allowedTestActions: [],
+	allowBuildOps: false,
+	allowedBuildActions: [],
+	allowGitOps: false,
+	allowedGitActions: [],
+	allowFileOps: false,
+	allowedFileActions: []
+};
 
 describe('CommandValidator Security & Features', () => {
 	it('should block blacklisted commands at all levels', () => {
-		const config = { yoloLevel: YoloLevel.Full, whitelist: [], timeoutSeconds: 15 };
+		const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
 		const result = CommandValidator.validate('rm', ['-rf', '/'], config);
 		assert.strictEqual(result.execute, false);
 		assert.strictEqual(result.promptRequired, true);
 	});
 
 	it('should prevent path traversal bypasses', () => {
-		const config = { yoloLevel: YoloLevel.Full, whitelist: [], timeoutSeconds: 15 };
+		const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
 		const result1 = CommandValidator.validate('/bin/rm', ['-rf', '/'], config);
 		const result2 = CommandValidator.validate('../usr/bin/rm', ['-rf', '/'], config);
 		assert.strictEqual(result1.promptRequired, true);
@@ -19,31 +35,97 @@ describe('CommandValidator Security & Features', () => {
 	});
 
 	it('should strip wrappers and block underlying malicious commands', () => {
-		const config = { yoloLevel: YoloLevel.Full, whitelist: [], timeoutSeconds: 15 };
+		const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
 		const result1 = CommandValidator.validate('sudo', ['rm', '-rf', '/'], config);
 		const result2 = CommandValidator.validate('npx', ['rm', '-rf', '/'], config);
-		const result3 = CommandValidator.validate('env', ['FOO=bar', '/bin/rm'], config); // Wait, env FOO=bar rm args parsing. 
 		const result4 = CommandValidator.validate('npm', ['exec', 'rm'], config);
 
 		assert.strictEqual(result1.promptRequired, true, 'sudo rm failed');
 		assert.strictEqual(result2.promptRequired, true, 'npx rm failed');
-		// env FOO=bar /bin/rm doesn't get un-wrapped exactly the same if FOO=bar is an arg to env. 
-		// Actually, our unwrap logic doesn't strip args with '=' inside 'env' explicitly, but we removed env.
-		// Wait, let's test result4.
 		assert.strictEqual(result4.promptRequired, true, 'npm exec rm failed');
 	});
 
 	it('should allow custom whitelisted commands at Level 2', () => {
-		const config = { yoloLevel: YoloLevel.Scoped, whitelist: ['npm install'], timeoutSeconds: 15 };
+		const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Scoped, whitelist: ['npm install'] };
 		const result = CommandValidator.validate('npm', ['install', 'express'], config);
 		assert.strictEqual(result.execute, true);
 		assert.strictEqual(result.promptRequired, false);
 	});
 
 	it('should block non-whitelisted commands at Level 2', () => {
-		const config = { yoloLevel: YoloLevel.Scoped, whitelist: ['npm install'], timeoutSeconds: 15 };
+		const config = { ...BASE_CONFIG, yoloLevel: YoloLevel.Scoped, whitelist: ['npm install'] };
 		const result = CommandValidator.validate('pip', ['install'], config);
 		assert.strictEqual(result.execute, false);
 		assert.strictEqual(result.promptRequired, true);
+	});
+
+	it('should validate package operations categories and actions', () => {
+		const configAllowed: AntiYoloConfig = {
+			...BASE_CONFIG,
+			yoloLevel: YoloLevel.Scoped,
+			allowPackageOps: true,
+			allowedPackageActions: ['install']
+		};
+		const configBlocked: AntiYoloConfig = {
+			...BASE_CONFIG,
+			yoloLevel: YoloLevel.Scoped,
+			allowPackageOps: false,
+			allowedPackageActions: ['install']
+		};
+		const configActionBlocked: AntiYoloConfig = {
+			...BASE_CONFIG,
+			yoloLevel: YoloLevel.Scoped,
+			allowPackageOps: true,
+			allowedPackageActions: ['uninstall'] // only allow uninstall
+		};
+
+		// 1. Allowed action
+		const res1 = CommandValidator.validate('npm', ['install', 'lodash'], configAllowed);
+		assert.strictEqual(res1.execute, true);
+
+		// 2. Disabled category
+		const res2 = CommandValidator.validate('npm', ['install', 'lodash'], configBlocked);
+		assert.strictEqual(res2.execute, false);
+		assert.strictEqual(res2.promptRequired, true);
+
+		// 3. Disabled action
+		const res3 = CommandValidator.validate('npm', ['install', 'lodash'], configActionBlocked);
+		assert.strictEqual(res3.execute, false);
+		assert.strictEqual(res3.promptRequired, true);
+	});
+
+	it('should validate git operations categories and actions', () => {
+		const config: AntiYoloConfig = {
+			...BASE_CONFIG,
+			yoloLevel: YoloLevel.Scoped,
+			allowGitOps: true,
+			allowedGitActions: ['commit', 'push']
+		};
+
+		const resCommit = CommandValidator.validate('git', ['commit', '-m', 'test'], config);
+		assert.strictEqual(resCommit.execute, true);
+
+		const resPush = CommandValidator.validate('git', ['push', 'origin', 'main'], config);
+		assert.strictEqual(resPush.execute, true);
+
+		const resCheckout = CommandValidator.validate('git', ['checkout', 'main'], config);
+		assert.strictEqual(resCheckout.execute, false);
+		assert.strictEqual(resCheckout.promptRequired, true);
+	});
+
+	it('should validate file operations categories and actions', () => {
+		const config: AntiYoloConfig = {
+			...BASE_CONFIG,
+			yoloLevel: YoloLevel.Scoped,
+			allowFileOps: true,
+			allowedFileActions: ['touch']
+		};
+
+		const resTouch = CommandValidator.validate('touch', ['file.txt'], config);
+		assert.strictEqual(resTouch.execute, true);
+
+		const resMkdir = CommandValidator.validate('mkdir', ['dir'], config);
+		assert.strictEqual(resMkdir.execute, false);
+		assert.strictEqual(resMkdir.promptRequired, true);
 	});
 });

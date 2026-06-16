@@ -9,4 +9,14 @@ export interface AntiYoloConfig {
 	yoloLevel: YoloLevel;
 	whitelist: string[];
 	timeoutSeconds: number;
+	allowPackageOps: boolean;
+	allowedPackageActions: string[];
+	allowTestOps: boolean;
+	allowedTestActions: string[];
+	allowBuildOps: boolean;
+	allowedBuildActions: string[];
+	allowGitOps: boolean;
+	allowedGitActions: string[];
+	allowFileOps: boolean;
+	allowedFileActions: string[];
 }
