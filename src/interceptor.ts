@@ -3,6 +3,10 @@ import { getConfig } from './config';
 import { CommandValidator } from './validator';
 import { executeStructuredCommand } from './executor';
 import { CommandLogger } from './logger';
+import { LocalApprovalServer } from './server';
+import * as crypto from 'crypto';
+import * as https from 'https';
+import * as url from 'url';
 
 interface ToolPayload {
 	command: string;
@@ -10,10 +14,28 @@ interface ToolPayload {
 }
 
 export class CommandInterceptor {
-	constructor(private context: vscode.ExtensionContext) {}
+	private pendingApprovals = new Map<string, {
+		token: string;
+		resolve: (choice: string) => void;
+	}>();
+
+	constructor(
+		private context: vscode.ExtensionContext,
+		private approvalServer: LocalApprovalServer
+	) {}
 
 	public register() {
 		console.log('Command Interceptor registered.');
+
+		// Register local HTTP server action handler
+		this.approvalServer.setOnAction((logId, token, action) => {
+			const pending = this.pendingApprovals.get(logId);
+			if (pending && pending.token === token) {
+				pending.resolve(action);
+				return true;
+			}
+			return false;
+		});
 		
 		const disposable = vscode.commands.registerCommand('antiyolo.runCommand', async (payloadString: string, cwd?: string) => {
 			if (!payloadString) {
@@ -68,11 +90,66 @@ export class CommandInterceptor {
 						status: 'Running'
 					});
 
-					const choice = await vscode.window.showWarningMessage(
-						`AntiYolo Alert\n\nAgent requested to run:\n${fullCmd}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
-						{ modal: true },
-						'Execute', 'Always Execute', 'Cancel'
-					);
+					const token = crypto.randomBytes(8).toString('hex');
+					
+					let resolvePromise!: (value: string) => void;
+					const remotePromise = new Promise<string>((resolve) => {
+						resolvePromise = resolve;
+					});
+
+					this.pendingApprovals.set(logId, { token, resolve: resolvePromise });
+
+					if (config.enableDiscord && config.discordWebhookUrl) {
+						const localPort = config.localServerPort;
+						const payload = {
+							embeds: [{
+								title: "🛡️ AntiYolo: Command Approval Request",
+								description: "An autonomous agent is requesting permission to execute a command.",
+								color: 5809407,
+								fields: [
+									{
+										name: "💻 Command",
+										value: `\`\`\`bash\n${fullCmd.length > 950 ? fullCmd.substring(0, 950) + '...' : fullCmd}\n\`\`\``
+									},
+									{
+										name: "⚠️ Reason / Context",
+										value: validation.reason || 'Manual confirmation required.'
+									},
+									{
+										name: "🔒 Security Level",
+										value: levelName,
+										inline: true
+									},
+									{
+										name: "⏱️ Timeout Limit",
+										value: `${config.timeoutSeconds} seconds`,
+										inline: true
+									},
+									{
+										name: "⚡ Actions",
+										value: `🔗 [Approve Once](http://localhost:${localPort}/respond?id=${logId}&token=${token}&action=Execute)\n🛡️ [Whitelist & Approve](http://localhost:${localPort}/respond?id=${logId}&token=${token}&action=AlwaysExecute)\n❌ [Deny Request](http://localhost:${localPort}/respond?id=${logId}&token=${token}&action=Cancel)`
+									}
+								],
+								timestamp: new Date().toISOString()
+							}]
+						};
+
+						this.sendDiscordWebhook(config.discordWebhookUrl, payload).catch(err => {
+							console.error('Failed to send Discord webhook:', err);
+							vscode.window.showWarningMessage(`AntiYolo: Failed to send Discord notification: ${err.message}`);
+						});
+					}
+
+					const choice = await Promise.race([
+						vscode.window.showWarningMessage(
+							`AntiYolo Alert\n\nAgent requested to run:\n${fullCmd}\n\nReason: ${validation.reason || 'Manual confirmation required.'}`,
+							{ modal: true },
+							'Execute', 'Always Execute', 'Cancel'
+						).then(c => c || 'Cancel'),
+						remotePromise
+					]);
+
+					this.pendingApprovals.delete(logId);
 
 					if (choice !== 'Execute' && choice !== 'Always Execute') {
 						logger.updateLog(logId, { status: 'Denied', output: 'Cancelled by user.' });
@@ -120,4 +197,42 @@ export class CommandInterceptor {
 
 		this.context.subscriptions.push(disposable);
 	}
+
+	public sendDiscordWebhook(webhookUrl: string, payload: any): Promise<void> {
+		return new Promise((resolve, reject) => {
+			try {
+				const parsedUrl = url.parse(webhookUrl);
+				const options: https.RequestOptions = {
+					hostname: parsedUrl.hostname,
+					path: parsedUrl.path,
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					}
+				};
+
+				const req = https.request(options, (res) => {
+					let body = '';
+					res.on('data', (chunk) => body += chunk);
+					res.on('end', () => {
+						if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+							resolve();
+						} else {
+							reject(new Error(`Discord webhook returned status ${res.statusCode}: ${body}`));
+						}
+					});
+				});
+
+				req.on('error', (err) => {
+					reject(err);
+				});
+
+				req.write(JSON.stringify(payload));
+				req.end();
+			} catch (err) {
+				reject(err);
+			}
+		});
+	}
 }
+
