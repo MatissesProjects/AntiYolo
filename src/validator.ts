@@ -1,5 +1,6 @@
 import { AntiYoloConfig, YoloLevel } from './types';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export interface ValidationResult {
 	execute: boolean;
@@ -534,8 +535,29 @@ export class CommandValidator {
 			return false;
 		}
 
+		let target = arg;
+		if (arg.includes('=')) {
+			const parts = arg.split('=');
+			target = parts.slice(1).join('=');
+		}
+
+		target = target.replace(/^['"]|['"]$/g, '');
+
+		// Detect environment variable references in the path to fail closed
+		const unixEnvRegex = /\$[a-zA-Z_][a-zA-Z0-9_]*|\$\{[a-zA-Z_][a-zA-Z0-9_]*\}/;
+		const winEnvRegex = /%[a-zA-Z0-9_]+%/;
+		if (unixEnvRegex.test(target) || winEnvRegex.test(target)) {
+			return true;
+		}
+
 		const checkAbsolutePath = (absPath: string): boolean => {
-			const normalized = path.normalize(absPath).toLowerCase();
+			let resolvedPath = absPath;
+			try {
+				if (fs.existsSync(absPath)) {
+					resolvedPath = fs.realpathSync(absPath);
+				}
+			} catch (e) {}
+			const normalized = path.normalize(resolvedPath).toLowerCase();
 			for (const folder of workspaceFolders) {
 				const normalizedFolder = path.normalize(folder).toLowerCase();
 				const relative = path.relative(normalizedFolder, normalized);
@@ -545,14 +567,6 @@ export class CommandValidator {
 			}
 			return true;
 		};
-
-		let target = arg;
-		if (arg.includes('=')) {
-			const parts = arg.split('=');
-			target = parts.slice(1).join('=');
-		}
-
-		target = target.replace(/^['"]|['"]$/g, '');
 
 		const hasSeparators = target.includes('/') || target.includes('\\');
 		const hasTraversal = target.includes('..');
@@ -565,7 +579,13 @@ export class CommandValidator {
 		if (hasTraversal || hasSeparators) {
 			for (const folder of workspaceFolders) {
 				const resolved = path.resolve(folder, target);
-				const normalized = path.normalize(resolved).toLowerCase();
+				let resolvedPath = resolved;
+				try {
+					if (fs.existsSync(resolved)) {
+						resolvedPath = fs.realpathSync(resolved);
+					}
+				} catch (e) {}
+				const normalized = path.normalize(resolvedPath).toLowerCase();
 				const normalizedFolder = path.normalize(folder).toLowerCase();
 				const relative = path.relative(normalizedFolder, normalized);
 				if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
@@ -636,6 +656,28 @@ export class CommandValidator {
 		}
 
 		if (shellCmdStr !== null) {
+			// Check for command substitution in the shell command string
+			const hasSubshell = shellCmdStr.includes('$(') || shellCmdStr.includes('`');
+			if (hasSubshell) {
+				for (const word of BLACKLIST) {
+					const regex = new RegExp(`\\b${word}\\b`);
+					if (regex.test(shellCmdStr)) {
+						return {
+							execute: false,
+							promptRequired: true,
+							reason: `Shell command contains command substitution with blacklisted word '${word}'.`
+						};
+					}
+				}
+				if (config.yoloLevel !== YoloLevel.Full) {
+					return {
+						execute: false,
+						promptRequired: true,
+						reason: 'Shell command contains command substitution, which requires manual approval.'
+					};
+				}
+			}
+
 			const subStatements = this.splitShellCommands(shellCmdStr);
 			for (const subStmt of subStatements) {
 				const tokenized = this.tokenizeShellCommand(subStmt);
@@ -679,6 +721,123 @@ export class CommandValidator {
 				const regex = new RegExp(`\\b${word}\\b`);
 				if (regex.test(inlineScript)) {
 					return { execute: false, promptRequired: true, reason: `Inline script contains blacklisted command word '${word}'.` };
+				}
+			}
+		}
+
+		// Check script file execution
+		let scriptPath: string | null = null;
+		if (['bash', 'sh', 'zsh', 'dash', 'ksh', 'python', 'python3', 'node', 'perl', 'ruby'].includes(baseExecutable)) {
+			for (const arg of unwrapped.args) {
+				if (arg === '--') continue;
+				if (arg.startsWith('-')) continue;
+				// If it's a file that exists, we treat it as a script file
+				const resolved = path.isAbsolute(arg) ? arg : (config.workspaceFolders?.[0] ? path.resolve(config.workspaceFolders[0], arg) : null);
+				if (resolved && fs.existsSync(resolved)) {
+					try {
+						if (fs.statSync(resolved).isFile()) {
+							scriptPath = resolved;
+							break;
+						}
+					} catch (e) {}
+				}
+			}
+		}
+
+		if (scriptPath !== null) {
+			if (['sh', 'bash', 'zsh', 'dash', 'ksh'].includes(baseExecutable)) {
+				try {
+					const content = fs.readFileSync(scriptPath, 'utf8');
+					const lines = content.split(/\r?\n/);
+					let currentLine = '';
+					for (let line of lines) {
+						line = line.trim();
+						if (!line || line.startsWith('#')) continue;
+						if (line.endsWith('\\')) {
+							currentLine += line.slice(0, -1) + ' ';
+							continue;
+						}
+						currentLine += line;
+						
+						const subStatements = this.splitShellCommands(currentLine);
+						for (const subStmt of subStatements) {
+							// Check for command substitution in the shell script file line
+							if (subStmt.includes('$(') || subStmt.includes('`')) {
+								for (const word of BLACKLIST) {
+									const regex = new RegExp(`\\b${word}\\b`);
+									if (regex.test(subStmt)) {
+										return {
+											execute: false,
+											promptRequired: true,
+											reason: `Script file '${path.basename(scriptPath)}' contains command substitution with blacklisted word '${word}'.`
+										};
+									}
+								}
+								if (config.yoloLevel !== YoloLevel.Full) {
+									return {
+										execute: false,
+										promptRequired: true,
+										reason: `Script file '${path.basename(scriptPath)}' contains command substitution, which requires manual approval.`
+									};
+								}
+							}
+
+							const tokenized = this.tokenizeShellCommand(subStmt);
+							if (!tokenized) continue;
+							const subResult = this.validateInternal(tokenized.command, tokenized.args, config, depth + 1);
+							if (subResult.promptRequired || !subResult.execute) {
+								return {
+									execute: false,
+									promptRequired: true,
+									reason: `Script file '${path.basename(scriptPath)}' contains invalid command: ${subResult.reason || ''}`
+								};
+							}
+						}
+						currentLine = '';
+					}
+					// ALL sub-commands in the shell script were validated and allowed!
+					return { execute: true, promptRequired: false };
+				} catch (e) {
+					return {
+						execute: false,
+						promptRequired: true,
+						reason: `Failed to read or parse script file '${path.basename(scriptPath)}': ${(e as Error).message}`
+					};
+				}
+			} else if (['python', 'python3', 'node', 'perl', 'ruby'].includes(baseExecutable)) {
+				try {
+					const content = fs.readFileSync(scriptPath, 'utf8');
+					const scriptBlacklist = ['rm', 'mkfs', 'dd', 'shutdown', 'reboot', 'mv'];
+					for (const word of scriptBlacklist) {
+						const regex = new RegExp(`\\b${word}\\b`);
+						if (regex.test(content)) {
+							return {
+								execute: false,
+								promptRequired: true,
+								reason: `Script file '${path.basename(scriptPath)}' contains blacklisted word '${word}'.`
+							};
+						}
+					}
+					if (config.yoloLevel !== YoloLevel.Full) {
+						const execApis = [
+							'os.system', 'subprocess', 'child_process', 'fs.rmSync', 'fs.unlinkSync', 'fs.rmdirSync'
+						];
+						for (const api of execApis) {
+							if (content.includes(api)) {
+								return {
+									execute: false,
+									promptRequired: true,
+									reason: `Script file '${path.basename(scriptPath)}' uses restricted API '${api}'.`
+								};
+							}
+						}
+					}
+				} catch (e) {
+					return {
+						execute: false,
+						promptRequired: true,
+						reason: `Failed to read script file '${path.basename(scriptPath)}': ${(e as Error).message}`
+					};
 				}
 			}
 		}

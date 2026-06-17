@@ -294,4 +294,180 @@ describe('CommandValidator Security & Features', () => {
 			assert.strictEqual(resultOutside.promptRequired, true);
 		});
 	});
+
+	describe('New Security Enhancements', () => {
+		const fs = require('fs');
+		const path = require('path');
+		const os = require('os');
+
+		let tempWorkspace: string;
+		let outsideFile: string;
+		let insideSymlink: string;
+		let safeShellScript: string;
+		let unsafeShellScript: string;
+		let subshellShellScript: string;
+		let safePythonScript: string;
+		let unsafePythonScript: string;
+		let blacklistPythonScript: string;
+
+		before(() => {
+			tempWorkspace = path.resolve('temp-test-workspace');
+			if (!fs.existsSync(tempWorkspace)) {
+				fs.mkdirSync(tempWorkspace);
+			}
+
+			// Create outside file and a symlink pointing to it inside workspace
+			const tempDir = os.tmpdir();
+			outsideFile = path.join(tempDir, `outside-${Date.now()}.txt`);
+			fs.writeFileSync(outsideFile, 'secret data');
+
+			insideSymlink = path.join(tempWorkspace, 'link-to-outside.txt');
+			try {
+				try {
+					if (fs.lstatSync(insideSymlink)) {
+						fs.unlinkSync(insideSymlink);
+					}
+				} catch (err) {}
+				fs.symlinkSync(outsideFile, insideSymlink);
+			} catch (e) {
+				// Fallback if symlink creation is not permitted (e.g. Windows without admin privileges)
+				// We can still test with a direct file if symlink fails
+				console.warn('Symlink creation failed, skipping symlink specific test: ' + e);
+			}
+
+			// Safe shell script
+			safeShellScript = path.join(tempWorkspace, 'safe.sh');
+			fs.writeFileSync(safeShellScript, 'ls\ncat file.txt\n');
+
+			// Unsafe shell script (contains rm)
+			unsafeShellScript = path.join(tempWorkspace, 'unsafe.sh');
+			fs.writeFileSync(unsafeShellScript, 'echo hello\nrm -rf /\n');
+
+			// Subshell shell script
+			subshellShellScript = path.join(tempWorkspace, 'subshell.sh');
+			fs.writeFileSync(subshellShellScript, 'git commit -m "$(git log -1)"\n');
+
+			// Safe Python script
+			safePythonScript = path.join(tempWorkspace, 'safe.py');
+			fs.writeFileSync(safePythonScript, 'print("Hello, world!")\n');
+
+			// Unsafe Python script (uses os.system)
+			unsafePythonScript = path.join(tempWorkspace, 'unsafe.py');
+			fs.writeFileSync(unsafePythonScript, 'import os\nos.system("ls")\n');
+
+			// Blacklist Python script (contains rm word)
+			blacklistPythonScript = path.join(tempWorkspace, 'blacklist.py');
+			fs.writeFileSync(blacklistPythonScript, '# this script deletes things using rm\nprint("warning")\n');
+		});
+
+		after(() => {
+			const clean = (file: string) => {
+				try { fs.unlinkSync(file); } catch (e) {}
+			};
+			clean(outsideFile);
+			clean(insideSymlink);
+			clean(safeShellScript);
+			clean(unsafeShellScript);
+			clean(subshellShellScript);
+			clean(safePythonScript);
+			clean(unsafePythonScript);
+			clean(blacklistPythonScript);
+			try { fs.rmdirSync(tempWorkspace); } catch (e) {}
+		});
+
+		it('should block command substitution in shellCmdStr at lower YOLO levels and failsafe blacklist in Full YOLO', () => {
+			const configReadOnly = { ...BASE_CONFIG, yoloLevel: YoloLevel.ReadOnly };
+			const configFull = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full };
+
+			// Should block in ReadOnly because it contains command substitution
+			const res1 = CommandValidator.validate('bash', ['-c', 'echo $(pwd)'], configReadOnly);
+			assert.strictEqual(res1.execute, false);
+			assert.strictEqual(res1.promptRequired, true);
+
+			// Should allow in Full YOLO if safe
+			const res2 = CommandValidator.validate('bash', ['-c', 'echo $(pwd)'], configFull);
+			assert.strictEqual(res2.execute, true);
+
+			// Should block/prompt in Full YOLO if contains blacklist
+			const res3 = CommandValidator.validate('bash', ['-c', 'echo $(rm -rf /)'], configFull);
+			assert.strictEqual(res3.execute, false);
+			assert.strictEqual(res3.promptRequired, true);
+		});
+
+		it('should block env variables in paths when restrictToWorkspace is true', () => {
+			const configRestrict = {
+				...BASE_CONFIG,
+				yoloLevel: YoloLevel.ReadOnly,
+				restrictToWorkspace: true,
+				workspaceFolders: [tempWorkspace]
+			};
+
+			const resUnix = CommandValidator.validate('cat', ['$HOME/keys.txt'], configRestrict);
+			assert.strictEqual(resUnix.execute, false);
+			assert.strictEqual(resUnix.promptRequired, true);
+
+			const resWin = CommandValidator.validate('cat', ['%USERPROFILE%/keys.txt'], configRestrict);
+			assert.strictEqual(resWin.execute, false);
+			assert.strictEqual(resWin.promptRequired, true);
+		});
+
+		it('should resolve symlinks and block them if they point outside workspace', () => {
+			if (!fs.existsSync(insideSymlink)) {
+				return; // Skip if symlink couldn't be created
+			}
+			const configRestrict = {
+				...BASE_CONFIG,
+				yoloLevel: YoloLevel.ReadOnly,
+				restrictToWorkspace: true,
+				workspaceFolders: [tempWorkspace]
+			};
+
+			const res = CommandValidator.validate('cat', [insideSymlink], configRestrict);
+			assert.strictEqual(res.execute, false, 'Symlink pointing outside should be blocked');
+			assert.strictEqual(res.promptRequired, true);
+		});
+
+		it('should recursively validate commands in shell script files', () => {
+			const configReadOnly = { ...BASE_CONFIG, yoloLevel: YoloLevel.ReadOnly, workspaceFolders: [tempWorkspace] };
+			const configFull = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full, workspaceFolders: [tempWorkspace] };
+
+			// Safe script should pass
+			const resSafe = CommandValidator.validate('bash', [safeShellScript], configReadOnly);
+			assert.strictEqual(resSafe.execute, true);
+
+			// Script with blacklisted rm should block even in Full YOLO
+			const resUnsafe = CommandValidator.validate('bash', [unsafeShellScript], configFull);
+			assert.strictEqual(resUnsafe.execute, false);
+			assert.strictEqual(resUnsafe.promptRequired, true);
+
+			// Script with command substitution should prompt in ReadOnly
+			const resSub = CommandValidator.validate('bash', [subshellShellScript], configReadOnly);
+			assert.strictEqual(resSub.execute, false);
+			assert.strictEqual(resSub.promptRequired, true);
+		});
+
+		it('should inspect python scripts and block restricted APIs or blacklist words', () => {
+			const configScoped: AntiYoloConfig = {
+				...BASE_CONFIG,
+				yoloLevel: YoloLevel.Scoped,
+				whitelist: ['python3'],
+				workspaceFolders: [tempWorkspace]
+			};
+			const configFull = { ...BASE_CONFIG, yoloLevel: YoloLevel.Full, workspaceFolders: [tempWorkspace] };
+
+			// Safe Python script should pass (whitelisted interpreter, safe content)
+			const resSafe = CommandValidator.validate('python3', [safePythonScript], configScoped);
+			assert.strictEqual(resSafe.execute, true);
+
+			// Python script using os.system should prompt in Scoped YOLO
+			const resUnsafe = CommandValidator.validate('python3', [unsafePythonScript], configScoped);
+			assert.strictEqual(resUnsafe.execute, false);
+			assert.strictEqual(resUnsafe.promptRequired, true);
+
+			// Python script containing blacklisted word should block even in Full YOLO
+			const resBlacklist = CommandValidator.validate('python3', [blacklistPythonScript], configFull);
+			assert.strictEqual(resBlacklist.execute, false);
+			assert.strictEqual(resBlacklist.promptRequired, true);
+		});
+	});
 });
